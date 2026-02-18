@@ -1,0 +1,27 @@
+# Virtual environment
+myenv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude temp files
+tmpclaude-*
+
+# Logs (generated at runtime)
+*.log
