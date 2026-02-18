@@ -36,12 +36,12 @@ def _build_guide_html() -> str:
         file_manager = "your file manager"
 
     html = f"""
-    <h2 style="color:#1976D2;">StorageCleaner User Guide</h2>
+    <h2 style="color:#5B9BD5;">StorageCleaner User Guide</h2>
     <p>Welcome to StorageCleaner! This guide covers every tab and feature to help you
     get started quickly.</p>
 
     <hr>
-    <h3 style="color:#1976D2;">1. Cleaner Tab</h3>
+    <h3 style="color:#5B9BD5;">1. Cleaner Tab</h3>
     <p>The Cleaner tab lets you scan and delete common junk files to free up space.</p>
     <ul>
       <li><b>Scan</b> &ndash; Click to calculate the size of each clean target
@@ -56,7 +56,7 @@ def _build_guide_html() -> str:
     if you are not elevated. To elevate, {elevate}.</p>
 
     <hr>
-    <h3 style="color:#1976D2;">2. Installed Apps Tab</h3>
+    <h3 style="color:#5B9BD5;">2. Installed Apps Tab</h3>
     <p>View all applications installed on your system, sourced from {apps_source}.</p>
     <ul>
       <li><b>Search</b> &ndash; Type in the search box to filter apps by name.</li>
@@ -68,7 +68,7 @@ def _build_guide_html() -> str:
     <p>{system_apps_info}</p>
 
     <hr>
-    <h3 style="color:#1976D2;">3. Storage Tab</h3>
+    <h3 style="color:#5B9BD5;">3. Storage Tab</h3>
     <p>Explore your {storage_term} to find what's using space.</p>
     <ul>
       <li><b>Location selector</b> &ndash; Choose which storage location to scan
@@ -84,7 +84,7 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">4. AI Advisor Tab</h3>
+    <h3 style="color:#5B9BD5;">4. AI Advisor Tab</h3>
     <p>The AI Advisor uses machine learning techniques to intelligently analyse your files
     and recommend which ones are safe to delete.</p>
     <ul>
@@ -103,7 +103,7 @@ def _build_guide_html() -> str:
       </li>
       <li><b>Safety levels</b>:
         <ul>
-          <li><span style="color:green;"><b>SAFE TO DELETE</b></span> (green rows, score 60+) &ndash;
+          <li><span style="color:#66BB6A;"><b>SAFE TO DELETE</b></span> (green rows, score 60+) &ndash;
               High confidence these can be removed safely.</li>
           <li><span style="color:#FF8C00;"><b>REVIEW</b></span> (yellow rows, score 30-59) &ndash;
               Probably unused. Check before deleting.</li>
@@ -120,15 +120,15 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">5. StorageAdvisor Tab</h3>
+    <h3 style="color:#5B9BD5;">5. StorageAdvisor Tab</h3>
     <p>StorageAdvisor is your in-app storage assistant. It uses a strict
     decision framework to help you free disk space safely:</p>
     <ul>
-      <li><span style="color:green;"><b>SAFE_DELETE</b></span> &ndash; Low-risk
+      <li><span style="color:#66BB6A;"><b>SAFE_DELETE</b></span> &ndash; Low-risk
           temp/cache items, queue for deletion.</li>
       <li><span style="color:#FF8C00;"><b>REVIEW</b></span> &ndash; User data or
           unknown items; recommend manual inspection.</li>
-      <li><span style="color:red;"><b>DO_NOT_DELETE</b></span> &ndash; OS/system
+      <li><span style="color:#FF6B6B;"><b>DO_NOT_DELETE</b></span> &ndash; OS/system
           paths; hard warning, never delete.</li>
     </ul>
     <ul>
@@ -149,7 +149,7 @@ def _build_guide_html() -> str:
     <i>&ldquo;Give me storage tips&rdquo;</i></p>
 
     <hr>
-    <h3 style="color:#1976D2;">6. Tips &amp; Best Practices</h3>
+    <h3 style="color:#5B9BD5;">6. Tips &amp; Best Practices</h3>
     <ul>
       <li>Run a clean scan periodically (e.g. monthly) to keep your system lean.</li>
       <li>Always review items before deleting &ndash; especially in the Advisor tab.</li>
@@ -160,7 +160,7 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">7. Troubleshooting</h3>
+    <h3 style="color:#5B9BD5;">7. Troubleshooting</h3>
     <table border="0" cellpadding="4" cellspacing="0">
       <tr>
         <td><b>Problem</b></td>
@@ -187,7 +187,7 @@ def _build_guide_html() -> str:
     </table>
 
     <hr>
-    <p style="color:gray; font-size:small;">StorageCleaner &mdash; Cross-platform storage management tool.
+    <p style="color:#AAAAAA; font-size:small;">StorageCleaner &mdash; Cross-platform storage management tool.
     Works on {os_name}.</p>
     """
     return html

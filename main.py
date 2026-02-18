@@ -16,22 +16,73 @@ def main():
     app = QApplication(sys.argv)
     app.setFont(QFont(get_default_font(), 12))
     app.setStyleSheet("""
-        QLabel { font-size: 14px; color: #111111; }
-        QPushButton { padding: 6px 14px; font-size: 14px; font-weight: 500; color: #111111; }
-        QComboBox { padding: 5px; font-size: 14px; color: #111111; }
-        QLineEdit { padding: 6px; font-size: 14px; color: #111111; }
-        QCheckBox { font-size: 14px; spacing: 8px; color: #111111; }
-        QTableWidget { font-size: 13px; }
+        * { color: #FFFFFF; }
+        QWidget { background-color: #1E1E1E; }
+        QMainWindow { background-color: #1E1E1E; }
+        QLabel { font-size: 14px; }
+        QPushButton {
+            padding: 6px 14px; font-size: 14px; font-weight: 500;
+            background-color: #333333; color: #FFFFFF; border: 1px solid #555555;
+            border-radius: 4px;
+        }
+        QPushButton:hover { background-color: #444444; }
+        QPushButton:pressed { background-color: #555555; }
+        QComboBox {
+            padding: 5px; font-size: 14px;
+            background-color: #2A2A2A; color: #FFFFFF; border: 1px solid #555555;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #2A2A2A; color: #FFFFFF;
+            selection-background-color: #444444;
+        }
+        QLineEdit {
+            padding: 6px; font-size: 14px;
+            background-color: #2A2A2A; color: #FFFFFF; border: 1px solid #555555;
+        }
+        QCheckBox { font-size: 14px; spacing: 8px; }
+        QCheckBox::indicator { width: 16px; height: 16px; }
+        QTableWidget {
+            font-size: 13px; background-color: #2A2A2A; color: #FFFFFF;
+            gridline-color: #444444; alternate-background-color: #333333;
+        }
         QTableWidget::item { padding: 4px; }
-        QHeaderView::section { font-size: 13px; font-weight: bold; padding: 6px; }
-        QTabBar::tab { font-size: 14px; font-weight: bold; padding: 8px 16px; }
-        QTextEdit { font-size: 14px; }
-        QTextBrowser { font-size: 14px; }
-        QGroupBox { font-size: 14px; font-weight: bold; }
-        QGroupBox::title { color: #1976D2; }
-        QProgressBar { font-size: 13px; min-height: 20px; }
-        QMenuBar { font-size: 14px; }
-        QMenu { font-size: 14px; }
+        QTableWidget::item:selected { background-color: #444444; }
+        QHeaderView::section {
+            font-size: 13px; font-weight: bold; padding: 6px;
+            background-color: #333333; color: #FFFFFF; border: 1px solid #444444;
+        }
+        QTabWidget::pane { border: 1px solid #444444; background-color: #1E1E1E; }
+        QTabBar::tab {
+            font-size: 14px; font-weight: bold; padding: 8px 16px;
+            background-color: #2A2A2A; color: #AAAAAA; border: 1px solid #444444;
+        }
+        QTabBar::tab:selected { background-color: #1E1E1E; color: #FFFFFF; border-bottom: none; }
+        QTabBar::tab:hover { color: #FFFFFF; }
+        QTextEdit { font-size: 14px; background-color: #2A2A2A; color: #FFFFFF; }
+        QTextBrowser { font-size: 14px; background-color: #2A2A2A; color: #FFFFFF; }
+        QGroupBox { font-size: 14px; font-weight: bold; border: 1px solid #444444; margin-top: 8px; padding-top: 14px; }
+        QGroupBox::title { color: #5B9BD5; }
+        QProgressBar {
+            font-size: 13px; min-height: 20px;
+            background-color: #2A2A2A; color: #FFFFFF; border: 1px solid #444444;
+        }
+        QProgressBar::chunk { background-color: #5B9BD5; }
+        QMenuBar { font-size: 14px; background-color: #2A2A2A; color: #FFFFFF; }
+        QMenuBar::item:selected { background-color: #444444; }
+        QMenu { font-size: 14px; background-color: #2A2A2A; color: #FFFFFF; }
+        QMenu::item:selected { background-color: #444444; }
+        QScrollArea { background-color: #1E1E1E; }
+        QScrollBar:vertical {
+            background-color: #2A2A2A; width: 12px;
+        }
+        QScrollBar::handle:vertical { background-color: #555555; border-radius: 4px; min-height: 20px; }
+        QScrollBar:horizontal {
+            background-color: #2A2A2A; height: 12px;
+        }
+        QScrollBar::handle:horizontal { background-color: #555555; border-radius: 4px; min-width: 20px; }
+        QDialog { background-color: #1E1E1E; }
+        QMessageBox { background-color: #1E1E1E; }
+        QToolTip { background-color: #333333; color: #FFFFFF; border: 1px solid #555555; }
     """)
 
     # Set app icon for taskbar and window title bar

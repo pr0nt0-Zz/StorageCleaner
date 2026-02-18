@@ -109,9 +109,9 @@ def confidence_label(confidence: str) -> str:
 
 
 def recommendation_color(safety: str):
-    """Return (background_hex, text_hex) for a safety tier."""
+    """Return (background_hex, text_hex) for a safety tier (dark theme)."""
     if safety == "safe":
-        return ("#d4edda", "#155724")   # green
+        return ("#1B3A1B", "#66BB6A")   # dark green bg, light green text
     if safety == "review":
-        return ("#fff3cd", "#856404")   # yellow
-    return ("#f8f9fa", "#333333")       # neutral grey
+        return ("#3A3520", "#FFD54F")   # dark yellow bg, light yellow text
+    return ("#2A2A2A", "#CCCCCC")       # neutral dark grey

@@ -567,7 +567,7 @@ class MainWindow(QMainWindow):
         else:
             hint_text = "Uninstall column shows the terminal command. Copy and run it in your terminal. (Safe mode ON blocks execution.)"
         hint = QLabel(hint_text)
-        hint.setStyleSheet("color: #333; font-size: 13px;")
+        hint.setStyleSheet("color: #AAAAAA; font-size: 13px;")
         layout.addWidget(hint)
 
         self.app_refresh.clicked.connect(self._load_apps)
@@ -752,7 +752,7 @@ class MainWindow(QMainWindow):
         self.cb_drive_select_all = QCheckBox("Select All")
         self.cb_drive_select_all.stateChanged.connect(self._toggle_drive_select_all)
         self.btn_drive_delete = QPushButton("Delete Selected")
-        self.btn_drive_delete.setStyleSheet("color: red; font-weight: bold;")
+        self.btn_drive_delete.setStyleSheet("color: #FF6B6B; font-weight: bold;")
         delete_row.addWidget(self.cb_drive_select_all)
         delete_row.addWidget(self.btn_drive_delete)
         delete_row.addStretch()
@@ -977,9 +977,9 @@ class MainWindow(QMainWindow):
         self.cb_adv_select_all = QCheckBox("Select All")
         self.cb_adv_select_all.stateChanged.connect(self._toggle_advisor_select_all)
         self.btn_adv_select_safe = QPushButton("Select All Safe")
-        self.btn_adv_select_safe.setStyleSheet("color: green; font-weight: bold; font-size: 14px;")
+        self.btn_adv_select_safe.setStyleSheet("color: #66BB6A; font-weight: bold; font-size: 14px;")
         self.btn_adv_delete = QPushButton("Delete Selected")
-        self.btn_adv_delete.setStyleSheet("color: red; font-weight: bold;")
+        self.btn_adv_delete.setStyleSheet("color: #FF6B6B; font-weight: bold;")
         action_row.addWidget(self.cb_adv_select_all)
         action_row.addWidget(self.btn_adv_select_safe)
         action_row.addWidget(self.btn_adv_delete)
@@ -1237,7 +1237,7 @@ class MainWindow(QMainWindow):
         self.chat_display = QTextBrowser()
         self.chat_display.setOpenExternalLinks(False)
         self.chat_display.setStyleSheet(
-            "QTextBrowser { background-color: #f5f5f5; font-size: 15px; padding: 10px; }"
+            "QTextBrowser { background-color: #1E1E1E; font-size: 15px; padding: 10px; color: #FFFFFF; }"
         )
         layout.addWidget(self.chat_display)
 
@@ -1273,9 +1273,9 @@ class MainWindow(QMainWindow):
 
     def _append_bot_message(self, html_content: str):
         self.chat_display.append(
-            '<div style="background-color: #d6eaf8; border-radius: 8px; '
+            '<div style="background-color: #2A3A4A; border-radius: 8px; '
             'padding: 10px; margin: 6px 40px 6px 0px;">'
-            '<b style="color: #1a5276;">StorageAdvisor:</b><br>'
+            '<b style="color: #5B9BD5;">StorageAdvisor:</b><br>'
             f'{html_content}</div>'
         )
         self.chat_display.verticalScrollBar().setValue(
@@ -1285,9 +1285,9 @@ class MainWindow(QMainWindow):
     def _append_user_message(self, text: str):
         from html import escape
         self.chat_display.append(
-            '<div style="background-color: #d5f5e3; border-radius: 8px; '
+            '<div style="background-color: #2A4A2A; border-radius: 8px; '
             'padding: 10px; margin: 6px 0px 6px 40px; text-align: right;">'
-            '<b style="color: #1e8449;">You:</b><br>'
+            '<b style="color: #66BB6A;">You:</b><br>'
             f'{escape(text)}</div>'
         )
         self.chat_display.verticalScrollBar().setValue(

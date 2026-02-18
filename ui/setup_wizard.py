@@ -33,13 +33,13 @@ class SetupWizard(QDialog):
         # Step indicator
         self.step_label = QLabel("Step 1 of 4")
         self.step_label.setAlignment(Qt.AlignCenter)
-        self.step_label.setStyleSheet("font-size: 12px; color: #888; margin-bottom: 4px;")
+        self.step_label.setStyleSheet("font-size: 12px; color: #AAAAAA; margin-bottom: 4px;")
         main_layout.addWidget(self.step_label)
 
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("color: #ccc;")
+        sep.setStyleSheet("color: #444444;")
         main_layout.addWidget(sep)
 
         # Stacked pages
@@ -73,13 +73,13 @@ class SetupWizard(QDialog):
 
         title = QLabel("StorageCleaner")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 28px; font-weight: bold; color: #1e73d2;")
+        title.setStyleSheet("font-size: 28px; font-weight: bold; color: #5B9BD5;")
         layout.addWidget(title)
 
         trash = get_trash_label()
         subtitle = QLabel("Your all-in-one storage management utility")
         subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setStyleSheet("font-size: 14px; color: #555; margin-bottom: 16px;")
+        subtitle.setStyleSheet("font-size: 14px; color: #AAAAAA; margin-bottom: 16px;")
         layout.addWidget(subtitle)
 
         features = QLabel(
@@ -95,7 +95,7 @@ class SetupWizard(QDialog):
 
         hint = QLabel("Let's set up StorageCleaner for your system.")
         hint.setAlignment(Qt.AlignCenter)
-        hint.setStyleSheet("font-size: 12px; color: #888; margin-top: 12px;")
+        hint.setStyleSheet("font-size: 12px; color: #AAAAAA; margin-top: 12px;")
         layout.addWidget(hint)
 
         layout.addStretch()
@@ -113,7 +113,7 @@ class SetupWizard(QDialog):
 
         desc = QLabel("This is used for personalization only. You can leave it blank.")
         desc.setAlignment(Qt.AlignCenter)
-        desc.setStyleSheet("color: #666; margin-bottom: 12px;")
+        desc.setStyleSheet("color: #AAAAAA; margin-bottom: 12px;")
         layout.addWidget(desc)
 
         input_row = QHBoxLayout()
@@ -141,14 +141,14 @@ class SetupWizard(QDialog):
         desc = QLabel("StorageCleaner detected the following storage locations on your system.\n"
                        "Select which ones you want to scan and manage.")
         desc.setAlignment(Qt.AlignCenter)
-        desc.setStyleSheet("color: #666; margin-bottom: 8px;")
+        desc.setStyleSheet("color: #AAAAAA; margin-bottom: 8px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
         # Scrollable storage list
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 1px solid #ccc; }")
+        scroll.setStyleSheet("QScrollArea { border: 1px solid #444444; }")
         scroll_content = QWidget()
         self.storage_layout = QVBoxLayout(scroll_content)
 
@@ -156,7 +156,7 @@ class SetupWizard(QDialog):
 
         if not detected:
             no_storage = QLabel("No storage locations detected on this system.")
-            no_storage.setStyleSheet("color: red; font-weight: bold; padding: 20px;")
+            no_storage.setStyleSheet("color: #FF6B6B; font-weight: bold; padding: 20px;")
             no_storage.setAlignment(Qt.AlignCenter)
             self.storage_layout.addWidget(no_storage)
         else:
@@ -183,7 +183,7 @@ class SetupWizard(QDialog):
 
         # Warning label (hidden by default)
         self.storage_warning = QLabel("Please select at least one storage location.")
-        self.storage_warning.setStyleSheet("color: red; font-weight: bold;")
+        self.storage_warning.setStyleSheet("color: #FF6B6B; font-weight: bold;")
         self.storage_warning.setAlignment(Qt.AlignCenter)
         self.storage_warning.setVisible(False)
         layout.addWidget(self.storage_warning)
@@ -197,7 +197,7 @@ class SetupWizard(QDialog):
 
         header = QLabel("You're all set!")
         header.setAlignment(Qt.AlignCenter)
-        header.setStyleSheet("font-size: 22px; font-weight: bold; color: #1e73d2;")
+        header.setStyleSheet("font-size: 22px; font-weight: bold; color: #5B9BD5;")
         layout.addWidget(header)
 
         self.summary_label = QLabel("")
@@ -208,7 +208,7 @@ class SetupWizard(QDialog):
 
         hint = QLabel("You can change these settings later from Help > Run Setup Wizard.")
         hint.setAlignment(Qt.AlignCenter)
-        hint.setStyleSheet("color: #888; font-size: 11px;")
+        hint.setStyleSheet("color: #AAAAAA; font-size: 11px;")
         layout.addWidget(hint)
 
         layout.addStretch()
