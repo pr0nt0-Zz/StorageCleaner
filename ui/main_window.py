@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor, QBrush
 from PySide6.QtWidgets import (
     QWidget, QMainWindow, QTabWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit, QCheckBox,
-    QMessageBox, QLineEdit, QGroupBox, QComboBox, QMenuBar
+    QMessageBox, QLineEdit, QGroupBox, QComboBox, QMenuBar, QTextBrowser
 )
 
 from core.utils import human_bytes, is_admin, drive_exists, drive_usage, open_in_explorer, size_class, score_label, confidence_label, recommendation_color, get_logger, LOG_FILE
@@ -19,6 +19,7 @@ from core.apps import list_installed_apps
 from core.drive_scan import top_largest_folders, top_largest_files
 from core.ml_advisor import ml_scan, ScanResult
 from core.file_categories import CATEGORIES
+from core.chatbot import get_response as chatbot_response, get_welcome_message
 from core.platform_utils import (
     IS_WINDOWS, IS_LINUX,
     get_elevation_hint, get_trash_label,
@@ -202,6 +203,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self._build_apps_tab(), "Installed Apps")
         tabs.addTab(self._build_drives_tab(), "Storage")
         tabs.addTab(self._build_advisor_tab(), "AI Advisor")
+        tabs.addTab(self._build_chatbot_tab(), "Chatbot")
 
         self.setCentralWidget(tabs)
         self._build_menu_bar()
@@ -349,6 +351,7 @@ class MainWindow(QMainWindow):
             "<li><b>Installed Apps</b> - View and manage installed applications</li>"
             "<li><b>Storage</b> - Scan and identify the largest files and folders</li>"
             "<li><b>AI Advisor</b> - ML-powered file analysis with duplicate detection and safety scoring</li>"
+            "<li><b>Chatbot</b> - In-app assistant to help you use StorageCleaner</li>"
             "</ul>"
             "<p><b>Tips:</b></p>"
             "<ul>"
@@ -1222,6 +1225,88 @@ class MainWindow(QMainWindow):
             f"{remaining_count} file(s) remaining in review list  |  Deleted: {ok_count}  |  Failed: {fail_count}"
         )
         self._advisor_log(f"=== Delete done. OK={ok_count}, FAIL={fail_count} ===")
+
+    # -------------------------
+    # Chatbot Tab
+    # -------------------------
+    def _build_chatbot_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+
+        # Chat display
+        self.chat_display = QTextBrowser()
+        self.chat_display.setOpenExternalLinks(False)
+        self.chat_display.setStyleSheet(
+            "QTextBrowser { background-color: #f5f5f5; font-size: 14px; padding: 8px; }"
+        )
+        layout.addWidget(self.chat_display)
+
+        # Input row
+        input_row = QHBoxLayout()
+        self.chat_input = QLineEdit()
+        self.chat_input.setPlaceholderText("Type your question here...")
+        self.chat_input.setStyleSheet("font-size: 14px; padding: 6px;")
+        self.chat_input.returnPressed.connect(self._send_chat_message)
+        input_row.addWidget(self.chat_input)
+
+        self.btn_chat_send = QPushButton("Send")
+        self.btn_chat_send.setStyleSheet("font-weight: bold; padding: 6px 16px;")
+        self.btn_chat_send.clicked.connect(self._send_chat_message)
+        input_row.addWidget(self.btn_chat_send)
+        layout.addLayout(input_row)
+
+        # Quick action buttons
+        quick_row = QHBoxLayout()
+        quick_row.addWidget(QLabel("Quick:"))
+        for label in ["How to clean?", "AI Advisor help", "Storage tips", "What can you do?"]:
+            btn = QPushButton(label)
+            btn.setStyleSheet("font-size: 12px;")
+            btn.clicked.connect(lambda checked, q=label: self._send_quick_question(q))
+            quick_row.addWidget(btn)
+        quick_row.addStretch()
+        layout.addLayout(quick_row)
+
+        # Show welcome message
+        self._append_bot_message(get_welcome_message())
+
+        return w
+
+    def _append_bot_message(self, html_content: str):
+        self.chat_display.append(
+            '<div style="background-color: #d6eaf8; border-radius: 8px; '
+            'padding: 10px; margin: 6px 40px 6px 0px;">'
+            '<b style="color: #1a5276;">Bot:</b><br>'
+            f'{html_content}</div>'
+        )
+        self.chat_display.verticalScrollBar().setValue(
+            self.chat_display.verticalScrollBar().maximum()
+        )
+
+    def _append_user_message(self, text: str):
+        from html import escape
+        self.chat_display.append(
+            '<div style="background-color: #d5f5e3; border-radius: 8px; '
+            'padding: 10px; margin: 6px 0px 6px 40px; text-align: right;">'
+            '<b style="color: #1e8449;">You:</b><br>'
+            f'{escape(text)}</div>'
+        )
+        self.chat_display.verticalScrollBar().setValue(
+            self.chat_display.verticalScrollBar().maximum()
+        )
+
+    def _send_chat_message(self):
+        text = self.chat_input.text().strip()
+        if not text:
+            return
+        self.chat_input.clear()
+        self._append_user_message(text)
+        response = chatbot_response(text)
+        self._append_bot_message(response)
+
+    def _send_quick_question(self, question: str):
+        self._append_user_message(question)
+        response = chatbot_response(question)
+        self._append_bot_message(response)
 
     # -------------------------
     # Status Bar

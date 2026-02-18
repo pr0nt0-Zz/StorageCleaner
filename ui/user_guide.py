@@ -120,7 +120,25 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">5. Tips &amp; Best Practices</h3>
+    <h3 style="color:#1976D2;">5. Chatbot Tab</h3>
+    <p>The Chatbot is your in-app assistant. It can answer questions about
+    StorageCleaner's features and give storage management tips.</p>
+    <ul>
+      <li><b>How to use</b> &ndash; Type a question in the text box and press
+          Enter or click Send.</li>
+      <li><b>Quick actions</b> &ndash; Click the buttons below the input box for
+          common questions.</li>
+      <li><b>Topics it covers</b> &ndash; Cleaner, Installed Apps, Storage, AI Advisor,
+          setup wizard, admin/sudo, duplicate detection, and general tips.</li>
+      <li><b>Scope</b> &ndash; The chatbot only answers questions about this app.
+          It does not connect to the internet or use external AI services.</li>
+    </ul>
+    <p><b>Example questions:</b> <i>&ldquo;How do I clean junk files?&rdquo;</i>,
+    <i>&ldquo;What is the AI Advisor?&rdquo;</i>,
+    <i>&ldquo;Give me storage tips&rdquo;</i></p>
+
+    <hr>
+    <h3 style="color:#1976D2;">6. Tips &amp; Best Practices</h3>
     <ul>
       <li>Run a clean scan periodically (e.g. monthly) to keep your system lean.</li>
       <li>Always review items before deleting &ndash; especially in the Advisor tab.</li>
@@ -131,7 +149,7 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">6. Troubleshooting</h3>
+    <h3 style="color:#1976D2;">7. Troubleshooting</h3>
     <table border="0" cellpadding="4" cellspacing="0">
       <tr>
         <td><b>Problem</b></td>
