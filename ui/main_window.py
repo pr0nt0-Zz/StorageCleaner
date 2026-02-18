@@ -567,7 +567,7 @@ class MainWindow(QMainWindow):
         else:
             hint_text = "Uninstall column shows the terminal command. Copy and run it in your terminal. (Safe mode ON blocks execution.)"
         hint = QLabel(hint_text)
-        hint.setStyleSheet("color: #666;")
+        hint.setStyleSheet("color: #444; font-size: 12px;")
         layout.addWidget(hint)
 
         self.app_refresh.clicked.connect(self._load_apps)
@@ -1260,7 +1260,7 @@ class MainWindow(QMainWindow):
         quick_row.addWidget(QLabel("Quick:"))
         for label in ["How to clean?", "AI Advisor help", "Storage tips", "What can you do?"]:
             btn = QPushButton(label)
-            btn.setStyleSheet("font-size: 12px;")
+            btn.setStyleSheet("font-size: 13px;")
             btn.clicked.connect(lambda checked, q=label: self._send_quick_question(q))
             quick_row.addWidget(btn)
         quick_row.addStretch()
