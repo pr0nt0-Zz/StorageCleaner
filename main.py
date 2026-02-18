@@ -2,7 +2,9 @@ import sys
 import os
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QFont
+from pathlib import Path
+
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from ui.main_window import MainWindow
@@ -12,6 +14,13 @@ from ui.setup_wizard import SetupWizard
 def main():
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 10))
+
+    # Set app icon for taskbar and window title bar
+    # PyInstaller stores data files in sys._MEIPASS when bundled
+    base_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+    icon_path = base_dir / "app_icon.ico"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
 
     settings = QSettings("StorageCleaner", "StorageCleaner")
 
