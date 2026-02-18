@@ -16,12 +16,11 @@ def main():
     app = QApplication(sys.argv)
     app.setFont(QFont(get_default_font(), 12))
     app.setStyleSheet("""
-        * { color: #111111; }
-        QLabel { font-size: 14px; }
-        QPushButton { padding: 6px 14px; font-size: 14px; font-weight: 500; }
-        QComboBox { padding: 5px; font-size: 14px; }
-        QLineEdit { padding: 6px; font-size: 14px; }
-        QCheckBox { font-size: 14px; spacing: 8px; }
+        QLabel { font-size: 14px; color: #111111; }
+        QPushButton { padding: 6px 14px; font-size: 14px; font-weight: 500; color: #111111; }
+        QComboBox { padding: 5px; font-size: 14px; color: #111111; }
+        QLineEdit { padding: 6px; font-size: 14px; color: #111111; }
+        QCheckBox { font-size: 14px; spacing: 8px; color: #111111; }
         QTableWidget { font-size: 13px; }
         QTableWidget::item { padding: 4px; }
         QHeaderView::section { font-size: 13px; font-weight: bold; padding: 6px; }
