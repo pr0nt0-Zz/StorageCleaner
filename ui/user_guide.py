@@ -84,24 +84,39 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">4. Smart Advisor Tab</h3>
-    <p>The advisor scans a storage location for large, old files and gives each a
-    &ldquo;junk score&rdquo; from 0&ndash;100.</p>
+    <h3 style="color:#1976D2;">4. AI Advisor Tab</h3>
+    <p>The AI Advisor uses machine learning techniques to intelligently analyse your files
+    and recommend which ones are safe to delete.</p>
     <ul>
-      <li><b>How scoring works</b> &ndash; Files get points for: junk extensions
-          (.tmp, .log, .bak), being in Downloads/Temp folders, not accessed
-          or modified in over a year, and large size (&gt;1 GB).</li>
-      <li><b>Risk levels</b>:
+      <li><b>How it works</b> &ndash; The advisor scans your storage location and scores
+          each file from 0&ndash;100 using three components:
         <ul>
-          <li><span style="color:red;"><b>HIGH RISK</b></span> (score 70+) &ndash;
-              Very likely junk. Safe to review and delete.</li>
-          <li><span style="color:#FF8C00;"><b>MEDIUM RISK</b></span> (score 40-69) &ndash;
-              Probably unused. Review before deleting.</li>
-          <li><span style="color:green;"><b>LOW RISK</b></span> (score &lt;40) &ndash;
-              Likely still useful. Keep unless you're sure.</li>
+          <li><b>Rule-based scoring</b> &ndash; Junk extensions (.tmp, .log, .bak),
+              Downloads/Temp folder locations, known junk directories.</li>
+          <li><b>Statistical analysis (ML)</b> &ndash; Computes z-scores for file size
+              and age across your system. Files that are unusually large AND
+              unusually old score higher. This adapts to each system automatically.</li>
+          <li><b>Duplicate detection</b> &ndash; Groups files by size and partial hash
+              to find identical copies. Keeps the newest copy, marks others as safe
+              to delete.</li>
         </ul>
       </li>
-      <li><b>Delete</b> &ndash; Select flagged files and delete them after review.</li>
+      <li><b>Safety levels</b>:
+        <ul>
+          <li><span style="color:green;"><b>SAFE TO DELETE</b></span> (green rows, score 60+) &ndash;
+              High confidence these can be removed safely.</li>
+          <li><span style="color:#FF8C00;"><b>REVIEW</b></span> (yellow rows, score 30-59) &ndash;
+              Probably unused. Check before deleting.</li>
+          <li><b>Protected files</b> &ndash; System files are automatically excluded
+              and never shown in results.</li>
+        </ul>
+      </li>
+      <li><b>Categories</b> &ndash; Files are categorised (Cache, Duplicate, Log, Archive,
+          Old Download, etc.). Use the category filter to focus on specific types.</li>
+      <li><b>Select All Safe</b> &ndash; One-click button to select only green
+          (safe to delete) rows.</li>
+      <li><b>Delete</b> &ndash; Select files and click Delete to remove them permanently.
+          A confirmation dialog will appear first.</li>
     </ul>
 
     <hr>

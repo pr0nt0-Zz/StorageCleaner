@@ -5,18 +5,20 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt, QThread, Signal, QSettings
+from PySide6.QtGui import QColor, QBrush
 from PySide6.QtWidgets import (
     QWidget, QMainWindow, QTabWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit, QCheckBox,
     QMessageBox, QLineEdit, QGroupBox, QComboBox, QMenuBar
 )
 
-from core.utils import human_bytes, is_admin, drive_exists, drive_usage, open_in_explorer, size_class, score_label, get_logger, LOG_FILE
+from core.utils import human_bytes, is_admin, drive_exists, drive_usage, open_in_explorer, size_class, score_label, confidence_label, recommendation_color, get_logger, LOG_FILE
 from core.targets import CleanTarget, get_clean_targets
 from core.cleaner import folder_size_bytes, delete_contents, empty_recycle_bin
 from core.apps import list_installed_apps
 from core.drive_scan import top_largest_folders, top_largest_files
-from core.advisor import scan_stale_files
+from core.ml_advisor import ml_scan, ScanResult
+from core.file_categories import CATEGORIES
 from core.platform_utils import (
     IS_WINDOWS, IS_LINUX,
     get_elevation_hint, get_trash_label,
@@ -152,10 +154,10 @@ class DriveDeleteWorker(QThread):
             self.progress.emit(int(((i + 1) / max(n, 1)) * 100))
         self.done.emit(results)
 
-class AdvisorWorker(QThread):
+class MLAdvisorWorker(QThread):
     progress = Signal(int)
     log = Signal(str)
-    done = Signal(list)
+    done = Signal(object)   # ScanResult
 
     def __init__(self, root: str, min_size_mb: int):
         super().__init__()
@@ -163,12 +165,14 @@ class AdvisorWorker(QThread):
         self.min_size_mb = min_size_mb
 
     def run(self):
-        self.log.emit(f"Smart Advisor scan: {self.root} (min {self.min_size_mb} MB)")
-        self.progress.emit(10)
-        results = scan_stale_files(self.root, min_size_mb=self.min_size_mb)
-        self.progress.emit(100)
-        self.log.emit(f"Found {len(results)} stale file(s)")
-        self.done.emit(results)
+        self.log.emit(f"AI Advisor scan: {self.root} (min {self.min_size_mb} MB)")
+        result = ml_scan(
+            self.root,
+            min_size_mb=self.min_size_mb,
+            progress_cb=lambda pct: self.progress.emit(pct),
+        )
+        self.log.emit(f"Found {len(result.files)} file(s), {result.duplicates_found} duplicate group(s)")
+        self.done.emit(result)
 
 # -------------------------
 # Main Window
@@ -197,7 +201,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self._build_cleaner_tab(), "Cleaner")
         tabs.addTab(self._build_apps_tab(), "Installed Apps")
         tabs.addTab(self._build_drives_tab(), "Storage")
-        tabs.addTab(self._build_advisor_tab(), "Smart Advisor")
+        tabs.addTab(self._build_advisor_tab(), "AI Advisor")
 
         self.setCentralWidget(tabs)
         self._build_menu_bar()
@@ -336,7 +340,7 @@ class MainWindow(QMainWindow):
         os_info = f"{platform.system()} {platform.release()}"
         QMessageBox.about(
             self, "About StorageCleaner",
-            "<h3>StorageCleaner v1.1</h3>"
+            "<h3>StorageCleaner v1.2</h3>"
             f"<p>A cross-platform storage management and disk cleaning utility.</p>"
             f"<p>Running on: {os_info}</p>"
             "<p><b>Features:</b></p>"
@@ -344,7 +348,7 @@ class MainWindow(QMainWindow):
             f"<li><b>Cleaner</b> - Remove temp files, browser caches, and {trash} contents</li>"
             "<li><b>Installed Apps</b> - View and manage installed applications</li>"
             "<li><b>Storage</b> - Scan and identify the largest files and folders</li>"
-            "<li><b>Smart Advisor</b> - Find stale, unused large files with a risk score</li>"
+            "<li><b>AI Advisor</b> - ML-powered file analysis with duplicate detection and safety scoring</li>"
             "</ul>"
             "<p><b>Tips:</b></p>"
             "<ul>"
@@ -921,7 +925,7 @@ class MainWindow(QMainWindow):
         self._refresh_drive_usage()
 
     # -------------------------
-    # Smart Advisor Tab
+    # AI Advisor Tab
     # -------------------------
     def _build_advisor_tab(self) -> QWidget:
         w = QWidget()
@@ -931,8 +935,8 @@ class MainWindow(QMainWindow):
         ctrl = QHBoxLayout()
         ctrl.addWidget(QLabel("Min file size:"))
         self.adv_size_combo = QComboBox()
-        self.adv_size_combo.addItems(["100 MB", "250 MB", "500 MB", "1 GB"])
-        self.adv_size_combo.setCurrentIndex(2)  # default 500 MB
+        self.adv_size_combo.addItems(["10 MB", "25 MB", "50 MB", "100 MB", "250 MB", "500 MB"])
+        self.adv_size_combo.setCurrentIndex(2)  # default 50 MB
         ctrl.addWidget(self.adv_size_combo)
 
         ctrl.addWidget(QLabel("Location:"))
@@ -940,13 +944,24 @@ class MainWindow(QMainWindow):
         self._populate_storage_combo(self.adv_drive_combo)
         ctrl.addWidget(self.adv_drive_combo)
 
-        self.btn_adv_scan = QPushButton("Scan Location")
+        self.btn_adv_scan = QPushButton("AI Scan")
+        self.btn_adv_scan.setStyleSheet("font-weight: bold;")
         ctrl.addWidget(self.btn_adv_scan)
         layout.addLayout(ctrl)
 
+        # Category filter row
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Filter by category:"))
+        self.adv_cat_filter = QComboBox()
+        self._populate_category_filter()
+        filter_row.addWidget(self.adv_cat_filter)
+        filter_row.addStretch()
+        layout.addLayout(filter_row)
+
         # Dashboard
-        self.adv_dashboard = QLabel("Scan a storage location to find stale files.")
+        self.adv_dashboard = QLabel("Scan a storage location to find files safe to delete.")
         self.adv_dashboard.setStyleSheet("font-weight: 600;")
+        self.adv_dashboard.setWordWrap(True)
         layout.addWidget(self.adv_dashboard)
 
         # Progress
@@ -954,24 +969,29 @@ class MainWindow(QMainWindow):
         self.adv_progress.setValue(0)
         layout.addWidget(self.adv_progress)
 
-        # Select all + delete row
+        # Select all + select safe + delete row
         action_row = QHBoxLayout()
         self.cb_adv_select_all = QCheckBox("Select All")
         self.cb_adv_select_all.stateChanged.connect(self._toggle_advisor_select_all)
+        self.btn_adv_select_safe = QPushButton("Select All Safe")
+        self.btn_adv_select_safe.setStyleSheet("color: green; font-weight: bold;")
         self.btn_adv_delete = QPushButton("Delete Selected")
         self.btn_adv_delete.setStyleSheet("color: red; font-weight: bold;")
         action_row.addWidget(self.cb_adv_select_all)
+        action_row.addWidget(self.btn_adv_select_safe)
         action_row.addWidget(self.btn_adv_delete)
         action_row.addStretch()
         layout.addLayout(action_row)
 
-        # Results table
-        self.adv_table = QTableWidget(0, 8)
+        # Results table - 10 columns
+        self.adv_table = QTableWidget(0, 10)
         self.adv_table.setHorizontalHeaderLabels([
-            "Select", "Score", "Risk", "Size", "Last Accessed", "Last Modified", "Path", "Reasons"
+            "Select", "Score", "AI Recommendation", "Confidence", "Category",
+            "Size", "Last Accessed", "Last Modified", "Path", "Reasons"
         ])
-        self.adv_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
-        self.adv_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.Stretch)
+        self.adv_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.adv_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.Stretch)
+        self.adv_table.horizontalHeader().setSectionResizeMode(9, QHeaderView.Stretch)
         self.adv_table.setAlternatingRowColors(True)
         layout.addWidget(self.adv_table)
 
@@ -981,11 +1001,23 @@ class MainWindow(QMainWindow):
         self.adv_log_box.setMaximumHeight(120)
         layout.addWidget(self.adv_log_box)
 
+        # Store scan result for filtering
+        self._adv_scan_result: Optional[ScanResult] = None
+
         # Connections
         self.btn_adv_scan.clicked.connect(self._start_advisor_scan_from_combo)
         self.btn_adv_delete.clicked.connect(self._delete_advisor_selected)
+        self.btn_adv_select_safe.clicked.connect(self._select_all_safe)
+        self.adv_cat_filter.currentIndexChanged.connect(self._apply_advisor_filter)
 
         return w
+
+    def _populate_category_filter(self):
+        self.adv_cat_filter.clear()
+        self.adv_cat_filter.addItem("All Categories", "all")
+        for key, cat in CATEGORIES.items():
+            self.adv_cat_filter.addItem(cat.label, key)
+        self.adv_cat_filter.addItem("Duplicates Only", "duplicate")
 
     def _advisor_log(self, msg: str):
         self.adv_log_box.append(msg)
@@ -1013,58 +1045,106 @@ class MainWindow(QMainWindow):
         self.adv_table.setRowCount(0)
         self.adv_progress.setValue(0)
         self.cb_adv_select_all.setChecked(False)
-        self.adv_dashboard.setText("Scanning... this may take a while.")
+        self.adv_dashboard.setText("AI scanning... this may take a while.")
         self.btn_adv_scan.setEnabled(False)
 
-        self.advisor_worker = AdvisorWorker(root, min_size_mb)
+        self.advisor_worker = MLAdvisorWorker(root, min_size_mb)
         self.advisor_worker.log.connect(self._advisor_log)
         self.advisor_worker.progress.connect(self.adv_progress.setValue)
         self.advisor_worker.done.connect(self._on_advisor_scan_done)
         self.advisor_worker.finished.connect(self._advisor_scan_finished)
 
-        self._advisor_log(f"=== Smart Advisor scan: {root} (min {min_size_mb} MB) ===")
+        self._advisor_log(f"=== AI Advisor scan: {root} (min {min_size_mb} MB) ===")
         self.advisor_worker.start()
 
     def _advisor_scan_finished(self):
         self.btn_adv_scan.setEnabled(True)
 
-    def _on_advisor_scan_done(self, results: list):
+    def _on_advisor_scan_done(self, result: ScanResult):
+        self._adv_scan_result = result
+        self._render_advisor_table(result.files)
+
+        # Build dashboard summary
+        parts = [f"Found {len(result.files)} file(s)"]
+        parts.append(f"Total reclaimable: {human_bytes(result.total_reclaimable)}")
+        if result.duplicates_found > 0:
+            parts.append(f"Duplicates: {result.duplicates_found} group(s) ({human_bytes(result.duplicate_space_reclaimable)})")
+
+        # Category breakdown
+        cat_parts = []
+        for cat_key, info in result.category_summary.items():
+            cat_label = CATEGORIES.get(cat_key, CATEGORIES.get("large_unused")).label
+            cat_parts.append(f"{cat_label}: {info['count']} ({human_bytes(info['size'])})")
+        if cat_parts:
+            parts.append("  |  ".join(cat_parts))
+
+        self.adv_dashboard.setText("  |  ".join(parts[:3]) + ("\n" + parts[3] if len(parts) > 3 else ""))
+        self._advisor_log(f"=== AI scan done. {len(result.files)} files, {human_bytes(result.total_reclaimable)} total ===")
+
+    def _render_advisor_table(self, files):
         self.adv_table.setRowCount(0)
 
-        total_size = 0
-        for item in results:
+        for item in files:
             r = self.adv_table.rowCount()
             self.adv_table.insertRow(r)
 
             cb = QCheckBox()
             self.adv_table.setCellWidget(r, 0, cb)
 
-            score = item["score"]
-            label = score_label(score)
+            score_item = QTableWidgetItem(str(item.score))
+            rec_item = QTableWidgetItem(item.recommendation)
+            conf_item = QTableWidgetItem(confidence_label(item.confidence))
+            cat_label = CATEGORIES.get(item.category, CATEGORIES.get("large_unused")).label
+            cat_item = QTableWidgetItem(cat_label)
+            size_item = QTableWidgetItem(human_bytes(item.size))
+            size_item.setData(Qt.UserRole, item.size)
+            accessed_item = QTableWidgetItem(item.accessed)
+            modified_item = QTableWidgetItem(item.modified)
+            path_item = QTableWidgetItem(item.path)
+            reasons_item = QTableWidgetItem(item.reasons)
 
-            score_item = QTableWidgetItem(str(score))
-            risk_item = QTableWidgetItem(label)
-            size_item = QTableWidgetItem(human_bytes(item["size"]))
-            size_item.setData(Qt.UserRole, item["size"])
-            accessed_item = QTableWidgetItem(item["accessed"])
-            modified_item = QTableWidgetItem(item["modified"])
-            path_item = QTableWidgetItem(item["path"])
-            reasons_item = QTableWidgetItem(item["reasons"])
+            # Store safety and category as user data for filtering/selecting
+            rec_item.setData(Qt.UserRole, item.safety)
+            cat_item.setData(Qt.UserRole, item.category)
 
             self.adv_table.setItem(r, 1, score_item)
-            self.adv_table.setItem(r, 2, risk_item)
-            self.adv_table.setItem(r, 3, size_item)
-            self.adv_table.setItem(r, 4, accessed_item)
-            self.adv_table.setItem(r, 5, modified_item)
-            self.adv_table.setItem(r, 6, path_item)
-            self.adv_table.setItem(r, 7, reasons_item)
+            self.adv_table.setItem(r, 2, rec_item)
+            self.adv_table.setItem(r, 3, conf_item)
+            self.adv_table.setItem(r, 4, cat_item)
+            self.adv_table.setItem(r, 5, size_item)
+            self.adv_table.setItem(r, 6, accessed_item)
+            self.adv_table.setItem(r, 7, modified_item)
+            self.adv_table.setItem(r, 8, path_item)
+            self.adv_table.setItem(r, 9, reasons_item)
 
-            total_size += item["size"]
+            # Color-code row based on safety
+            bg_hex, fg_hex = recommendation_color(item.safety)
+            bg = QBrush(QColor(bg_hex))
+            fg = QBrush(QColor(fg_hex))
+            for c in range(1, 10):
+                cell = self.adv_table.item(r, c)
+                if cell:
+                    cell.setBackground(bg)
+                    cell.setForeground(fg)
 
-        self.adv_dashboard.setText(
-            f"Found {len(results)} stale file(s)  |  Total reclaimable: {human_bytes(total_size)}"
-        )
-        self._advisor_log(f"=== Scan done. {len(results)} files, {human_bytes(total_size)} total ===")
+    def _apply_advisor_filter(self):
+        if not self._adv_scan_result:
+            return
+        cat_key = self.adv_cat_filter.currentData()
+        if cat_key == "all":
+            self._render_advisor_table(self._adv_scan_result.files)
+        else:
+            filtered = [f for f in self._adv_scan_result.files if f.category == cat_key]
+            self._render_advisor_table(filtered)
+
+    def _select_all_safe(self):
+        """Select only rows marked as SAFE (green)."""
+        for r in range(self.adv_table.rowCount()):
+            cb = self.adv_table.cellWidget(r, 0)
+            rec_item = self.adv_table.item(r, 2)
+            if cb and rec_item:
+                safety = rec_item.data(Qt.UserRole)
+                cb.setChecked(safety == "safe")
 
     def _toggle_advisor_select_all(self, state):
         checked = state == Qt.Checked.value
@@ -1079,9 +1159,9 @@ class MainWindow(QMainWindow):
         for r in range(self.adv_table.rowCount()):
             cb = self.adv_table.cellWidget(r, 0)
             if cb and cb.isChecked():
-                path = self.adv_table.item(r, 6).text()
+                path = self.adv_table.item(r, 8).text()
                 paths.append(path)
-                raw_size = self.adv_table.item(r, 3).data(Qt.UserRole)
+                raw_size = self.adv_table.item(r, 5).data(Qt.UserRole)
                 if raw_size:
                     total_size += int(raw_size)
 
@@ -1129,7 +1209,7 @@ class MainWindow(QMainWindow):
                 self._advisor_log(f"[FAIL] {item['path']}: {item['message']}")
 
         for r in range(self.adv_table.rowCount() - 1, -1, -1):
-            path = self.adv_table.item(r, 6).text()
+            path = self.adv_table.item(r, 8).text()
             if path in deleted_paths:
                 self.adv_table.removeRow(r)
 
@@ -1139,7 +1219,7 @@ class MainWindow(QMainWindow):
         # Update dashboard with remaining items
         remaining_count = self.adv_table.rowCount()
         self.adv_dashboard.setText(
-            f"{remaining_count} file(s) remaining in review list"
+            f"{remaining_count} file(s) remaining in review list  |  Deleted: {ok_count}  |  Failed: {fail_count}"
         )
         self._advisor_log(f"=== Delete done. OK={ok_count}, FAIL={fail_count} ===")
 

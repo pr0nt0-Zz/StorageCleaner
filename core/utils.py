@@ -101,3 +101,17 @@ def score_label(score: int) -> str:
     if score >= 40:
         return "MEDIUM RISK"
     return "LOW RISK"
+
+
+def confidence_label(confidence: str) -> str:
+    """Map confidence string to display label."""
+    return {"High": "HIGH", "Medium": "MEDIUM", "Low": "LOW"}.get(confidence, confidence)
+
+
+def recommendation_color(safety: str):
+    """Return (background_hex, text_hex) for a safety tier."""
+    if safety == "safe":
+        return ("#d4edda", "#155724")   # green
+    if safety == "review":
+        return ("#fff3cd", "#856404")   # yellow
+    return ("#f8f9fa", "#333333")       # neutral grey
