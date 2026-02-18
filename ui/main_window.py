@@ -1,3 +1,4 @@
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -167,12 +168,14 @@ class AdvisorWorker(QThread):
 # Main Window
 # -------------------------
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, selected_drives: List[str] = None, user_name: str = ""):
         super().__init__()
         self.setWindowTitle("StorageCleaner (Windows 11) - All-in-one")
         self.resize(1100, 720)
 
         self.settings = QSettings("StorageCleaner", "StorageCleaner")
+        self.selected_drives = selected_drives or ["C"]
+        self.user_name = user_name
 
         self.targets: List[CleanTarget] = get_clean_targets(empty_recycle_bin)
         self.sizes: Dict[str, int] = {}
@@ -182,11 +185,12 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget()
         tabs.addTab(self._build_cleaner_tab(), "Cleaner")
         tabs.addTab(self._build_apps_tab(), "Installed Apps")
-        tabs.addTab(self._build_drives_tab(), "Drives (C/D)")
+        tabs.addTab(self._build_drives_tab(), "Drives")
         tabs.addTab(self._build_advisor_tab(), "Smart Advisor")
 
         self.setCentralWidget(tabs)
         self._build_menu_bar()
+        self._build_status_bar()
         self._update_admin_banner()
         self._load_settings()
 
@@ -242,10 +246,16 @@ class MainWindow(QMainWindow):
         return w
 
     def _update_admin_banner(self):
+        greeting = f"Welcome, {self.user_name}!  |  " if self.user_name else ""
         if is_admin():
-            self.admin_label.setText("Running as Admin: YES (system cleaning enabled)")
+            self.admin_label.setText(
+                f"{greeting}Running as Admin: YES (system cleaning enabled)"
+            )
         else:
-            self.admin_label.setText("Running as Admin: NO (some system folders may fail; right-click EXE -> Run as administrator)")
+            self.admin_label.setText(
+                f"{greeting}Running as Admin: NO (some system folders may fail; "
+                "right-click EXE -> Run as administrator)"
+            )
         self.admin_label.setStyleSheet("font-weight: 600;")
 
     def _load_settings(self):
@@ -275,6 +285,11 @@ class MainWindow(QMainWindow):
 
         help_menu = menu_bar.addMenu("Help")
 
+        setup_action = help_menu.addAction("Run Setup Wizard...")
+        setup_action.triggered.connect(self._rerun_setup_wizard)
+
+        help_menu.addSeparator()
+
         about_action = help_menu.addAction("About StorageCleaner")
         about_action.triggered.connect(self._show_about)
 
@@ -293,7 +308,7 @@ class MainWindow(QMainWindow):
             "<ul>"
             "<li><b>Cleaner</b> - Remove temp files, browser caches, and Recycle Bin contents</li>"
             "<li><b>Installed Apps</b> - View and uninstall Windows applications from the registry</li>"
-            "<li><b>Drives (C/D)</b> - Scan and identify the largest files and folders on your drives</li>"
+            "<li><b>Drives</b> - Scan and identify the largest files and folders on your drives</li>"
             "<li><b>Smart Advisor</b> - Find stale, unused large files with a risk score to help you decide what to remove</li>"
             "</ul>"
             "<p><b>Tips:</b></p>"
@@ -642,7 +657,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Failed to launch", str(e))
 
     # -------------------------
-    # Drives Tab (C/D)
+    # Drives Tab
     # -------------------------
     def _build_drives_tab(self) -> QWidget:
         w = QWidget()
@@ -664,15 +679,15 @@ class MainWindow(QMainWindow):
         scan_box = QGroupBox("Drive Analyzer")
         scan_l = QHBoxLayout(scan_box)
 
-        self.btn_c_folders = QPushButton("Scan Top Folders (C:)")
-        self.btn_c_files = QPushButton("Scan Top Files (C:)")
-        self.btn_d_folders = QPushButton("Scan Top Folders (D:)")
-        self.btn_d_files = QPushButton("Scan Top Files (D:)")
+        scan_l.addWidget(QLabel("Drive:"))
+        self.drive_combo = QComboBox()
+        self._populate_drive_combo(self.drive_combo)
+        scan_l.addWidget(self.drive_combo)
 
-        scan_l.addWidget(self.btn_c_folders)
-        scan_l.addWidget(self.btn_c_files)
-        scan_l.addWidget(self.btn_d_folders)
-        scan_l.addWidget(self.btn_d_files)
+        self.btn_scan_folders = QPushButton("Scan Top Folders")
+        self.btn_scan_files = QPushButton("Scan Top Files")
+        scan_l.addWidget(self.btn_scan_folders)
+        scan_l.addWidget(self.btn_scan_files)
         layout.addWidget(scan_box)
 
         # delete controls
@@ -698,33 +713,43 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.drive_log)
 
         self.btn_usage.clicked.connect(self._refresh_drive_usage)
-
-        self.btn_c_folders.clicked.connect(lambda: self._start_drive_scan("C:\\", "folders"))
-        self.btn_c_files.clicked.connect(lambda: self._start_drive_scan("C:\\", "files"))
-        self.btn_d_folders.clicked.connect(lambda: self._start_drive_scan("D:\\", "folders"))
-        self.btn_d_files.clicked.connect(lambda: self._start_drive_scan("D:\\", "files"))
+        self.btn_scan_folders.clicked.connect(lambda: self._start_drive_scan_from_combo("folders"))
+        self.btn_scan_files.clicked.connect(lambda: self._start_drive_scan_from_combo("files"))
         self.btn_drive_delete.clicked.connect(self._delete_drive_selected)
 
         self._refresh_drive_usage()
         return w
+
+    def _populate_drive_combo(self, combo: QComboBox):
+        combo.clear()
+        for letter in self.selected_drives:
+            combo.addItem(f"{letter}:", letter)
+
+    def _start_drive_scan_from_combo(self, mode: str):
+        letter = self.drive_combo.currentData()
+        if not letter:
+            QMessageBox.information(self, "No drive", "No drive selected.")
+            return
+        self._start_drive_scan(f"{letter}:\\", mode)
 
     def _drive_log(self, msg: str):
         self.drive_log.append(msg)
 
     def _refresh_drive_usage(self):
         parts = []
-        for letter in ["C", "D"]:
+        for letter in self.selected_drives:
             if drive_exists(letter):
                 total, used, free = drive_usage(f"{letter}:\\")
                 parts.append(f"{letter}:  Total {human_bytes(total)} | Used {human_bytes(used)} | Free {human_bytes(free)}")
             else:
                 parts.append(f"{letter}:  Not detected")
-        self.drive_info.setText(" | ".join(parts))
+        self.drive_info.setText("  |  ".join(parts))
 
     def _start_drive_scan(self, root: str, mode: str):
-        # guard: D might not exist
-        if root.upper().startswith("D") and not drive_exists("D"):
-            QMessageBox.information(self, "D: not found", "Drive D: is not detected on this system.")
+        # guard: drive might not exist
+        drive_letter = root[0].upper()
+        if not drive_exists(drive_letter):
+            QMessageBox.information(self, "Drive not found", f"Drive {drive_letter}: is not detected on this system.")
             return
 
         # Typical safe defaults
@@ -856,10 +881,13 @@ class MainWindow(QMainWindow):
         self.adv_size_combo.setCurrentIndex(2)  # default 500 MB
         ctrl.addWidget(self.adv_size_combo)
 
-        self.btn_adv_scan_c = QPushButton("Scan C:")
-        self.btn_adv_scan_d = QPushButton("Scan D:")
-        ctrl.addWidget(self.btn_adv_scan_c)
-        ctrl.addWidget(self.btn_adv_scan_d)
+        ctrl.addWidget(QLabel("Drive:"))
+        self.adv_drive_combo = QComboBox()
+        self._populate_drive_combo(self.adv_drive_combo)
+        ctrl.addWidget(self.adv_drive_combo)
+
+        self.btn_adv_scan = QPushButton("Scan Drive")
+        ctrl.addWidget(self.btn_adv_scan)
         layout.addLayout(ctrl)
 
         # Dashboard
@@ -900,8 +928,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.adv_log_box)
 
         # Connections
-        self.btn_adv_scan_c.clicked.connect(lambda: self._start_advisor_scan("C:\\"))
-        self.btn_adv_scan_d.clicked.connect(lambda: self._start_advisor_scan("D:\\"))
+        self.btn_adv_scan.clicked.connect(self._start_advisor_scan_from_combo)
         self.btn_adv_delete.clicked.connect(self._delete_advisor_selected)
 
         return w
@@ -915,9 +942,17 @@ class MainWindow(QMainWindow):
             return int(text.replace("GB", "").strip()) * 1024
         return int(text.replace("MB", "").strip())
 
+    def _start_advisor_scan_from_combo(self):
+        letter = self.adv_drive_combo.currentData()
+        if not letter:
+            QMessageBox.information(self, "No drive", "No drive selected.")
+            return
+        self._start_advisor_scan(f"{letter}:\\")
+
     def _start_advisor_scan(self, root: str):
-        if root.upper().startswith("D") and not drive_exists("D"):
-            QMessageBox.information(self, "D: not found", "Drive D: is not detected on this system.")
+        drive_letter = root[0].upper()
+        if not drive_exists(drive_letter):
+            QMessageBox.information(self, "Drive not found", f"Drive {drive_letter}: is not detected on this system.")
             return
 
         min_size_mb = self._get_adv_min_size_mb()
@@ -925,8 +960,7 @@ class MainWindow(QMainWindow):
         self.adv_progress.setValue(0)
         self.cb_adv_select_all.setChecked(False)
         self.adv_dashboard.setText("Scanning... this may take a while.")
-        self.btn_adv_scan_c.setEnabled(False)
-        self.btn_adv_scan_d.setEnabled(False)
+        self.btn_adv_scan.setEnabled(False)
 
         self.advisor_worker = AdvisorWorker(root, min_size_mb)
         self.advisor_worker.log.connect(self._advisor_log)
@@ -938,8 +972,7 @@ class MainWindow(QMainWindow):
         self.advisor_worker.start()
 
     def _advisor_scan_finished(self):
-        self.btn_adv_scan_c.setEnabled(True)
-        self.btn_adv_scan_d.setEnabled(True)
+        self.btn_adv_scan.setEnabled(True)
 
     def _on_advisor_scan_done(self, results: list):
         self.adv_table.setRowCount(0)
@@ -1055,4 +1088,51 @@ class MainWindow(QMainWindow):
             f"{remaining_count} file(s) remaining in review list"
         )
         self._advisor_log(f"=== Delete done. OK={ok_count}, FAIL={fail_count} ===")
+
+    # -------------------------
+    # Status Bar
+    # -------------------------
+    def _build_status_bar(self):
+        self._update_status_bar()
+
+    def _update_status_bar(self):
+        drives_str = ", ".join(f"{d}:" for d in sorted(self.selected_drives))
+        total_storage = 0
+        for letter in self.selected_drives:
+            if drive_exists(letter):
+                total, _, _ = drive_usage(f"{letter}:\\")
+                total_storage += total
+
+        os_info = f"{platform.system()} {platform.release()}"
+        msg = (
+            f"Managed drives: {drives_str}  |  "
+            f"Total storage: {human_bytes(total_storage)}  |  "
+            f"OS: {os_info}"
+        )
+        self.statusBar().showMessage(msg)
+
+    # -------------------------
+    # Re-run Setup Wizard
+    # -------------------------
+    def _rerun_setup_wizard(self):
+        from ui.setup_wizard import SetupWizard
+
+        wizard = SetupWizard(self.settings, parent=self)
+        # Pre-populate with current settings
+        wizard.name_input.setText(self.user_name)
+        for letter, cb in wizard._drive_checkboxes.items():
+            cb.setChecked(letter in self.selected_drives)
+
+        if wizard.exec() == wizard.Accepted:
+            self.selected_drives = wizard.get_selected_drives()
+            self.user_name = wizard.get_user_name()
+
+            # Rebuild drive combo boxes
+            self._populate_drive_combo(self.drive_combo)
+            self._populate_drive_combo(self.adv_drive_combo)
+
+            # Refresh UI
+            self._update_admin_banner()
+            self._refresh_drive_usage()
+            self._update_status_bar()
 

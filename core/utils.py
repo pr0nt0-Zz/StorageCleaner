@@ -59,6 +59,29 @@ def drive_exists(letter: str) -> bool:
     root = f"{letter}:\\"
     return os.path.exists(root)
 
+def detect_all_drives() -> list:
+    """
+    Detect all available drive partitions (A-Z) on this Windows system.
+    Returns a list of dicts:
+      [{"letter": "C", "total": int, "used": int, "free": int}, ...]
+    """
+    import string
+    drives = []
+    for letter in string.ascii_uppercase:
+        root = f"{letter}:\\"
+        if os.path.exists(root):
+            try:
+                total, used, free = shutil.disk_usage(root)
+                drives.append({
+                    "letter": letter,
+                    "total": total,
+                    "used": used,
+                    "free": free,
+                })
+            except Exception:
+                pass
+    return drives
+
 def drive_usage(drive_root: str):
     # returns (total, used, free) bytes
     total, used, free = shutil.disk_usage(drive_root)
