@@ -1,12 +1,20 @@
 import os
-import shutil
-import subprocess
 import logging
 import logging.handlers
 from pathlib import Path
 
+from core.platform_utils import (
+    IS_WINDOWS, IS_LINUX,
+    get_app_data_dir,
+    is_admin as _platform_is_admin,
+    detect_all_storage,
+    storage_exists as _platform_storage_exists,
+    storage_usage as _platform_storage_usage,
+    open_in_file_manager as _platform_open_in_file_manager,
+)
+
 # Configure logging with both console and file output
-LOG_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "StorageCleaner" / "logs"
+LOG_DIR = get_app_data_dir() / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "storagecleaner.log"
 
@@ -40,65 +48,38 @@ def human_bytes(n: int) -> str:
     return f"{n} B"
 
 def is_admin() -> bool:
-    # lightweight admin detection for Windows
-    try:
-        p = subprocess.run(["net", "session"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return p.returncode == 0
-    except Exception as e:
-        logging.warning(f"Admin check failed: {e}")
-        return False
-
-def safe_path_exists(p: Path) -> bool:
-    try:
-        return p.exists()
-    except Exception as e:
-        logging.warning(f"Path existence check failed for {p}: {e}")
-        return False
+    return _platform_is_admin()
 
 def drive_exists(letter: str) -> bool:
-    root = f"{letter}:\\"
-    return os.path.exists(root)
+    """Backward-compat wrapper. On Linux, checks storage_id instead."""
+    return _platform_storage_exists(letter)
 
 def detect_all_drives() -> list:
     """
-    Detect all available drive partitions (A-Z) on this Windows system.
-    Returns a list of dicts:
-      [{"letter": "C", "total": int, "used": int, "free": int}, ...]
+    Backward-compat wrapper. Returns list of dicts with 'letter' key on Windows,
+    'id' mapped to 'letter' for compatibility.
     """
-    import string
-    drives = []
-    for letter in string.ascii_uppercase:
-        root = f"{letter}:\\"
-        if os.path.exists(root):
-            try:
-                total, used, free = shutil.disk_usage(root)
-                drives.append({
-                    "letter": letter,
-                    "total": total,
-                    "used": used,
-                    "free": free,
-                })
-            except Exception:
-                pass
-    return drives
+    storages = detect_all_storage()
+    # Map to old format with 'letter' key for backward compatibility
+    result = []
+    for s in storages:
+        result.append({
+            "letter": s["id"],
+            "label": s["label"],
+            "path": s["path"],
+            "total": s["total"],
+            "used": s["used"],
+            "free": s["free"],
+        })
+    return result
 
 def drive_usage(drive_root: str):
-    # returns (total, used, free) bytes
-    total, used, free = shutil.disk_usage(drive_root)
-    return total, used, free
+    """Returns (total, used, free) bytes."""
+    return _platform_storage_usage(drive_root)
 
 def open_in_explorer(path: str):
-    # Open folder or select file
-    try:
-        p = Path(path)
-        if p.exists() and p.is_file():
-            subprocess.run(["explorer", "/select,", str(p)], check=False)
-        else:
-            subprocess.run(["explorer", str(p)], check=False)
-    except Exception as e:
-        logging.warning(f"Failed to open in explorer: {path}: {e}")
-        # fallback: just try explorer with raw path
-        subprocess.run(["explorer", path], check=False)
+    """Backward-compat wrapper for open_in_file_manager."""
+    _platform_open_in_file_manager(path)
 
 def size_class(n_bytes: int) -> str:
     gb = 1024 ** 3
@@ -120,4 +101,3 @@ def score_label(score: int) -> str:
     if score >= 40:
         return "MEDIUM RISK"
     return "LOW RISK"
-

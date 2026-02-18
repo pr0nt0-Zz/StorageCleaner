@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (
     QCheckBox, QFrame
 )
 
-from core.utils import detect_all_drives, human_bytes
+from core.utils import human_bytes
+from core.platform_utils import detect_all_storage, IS_WINDOWS, get_trash_label
 
 
 class SetupWizard(QDialog):
@@ -19,9 +20,9 @@ class SetupWizard(QDialog):
     def __init__(self, settings: QSettings, parent=None):
         super().__init__(parent)
         self.settings = settings
-        self.selected_drives: List[str] = []
+        self.selected_storage: List[str] = []
         self.user_name: str = ""
-        self._drive_checkboxes: Dict[str, QCheckBox] = {}
+        self._storage_checkboxes: Dict[str, QCheckBox] = {}
 
         self.setWindowTitle("StorageCleaner - Setup")
         self.setMinimumSize(620, 500)
@@ -45,7 +46,7 @@ class SetupWizard(QDialog):
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_welcome_page())
         self.stack.addWidget(self._build_profile_page())
-        self.stack.addWidget(self._build_drives_page())
+        self.stack.addWidget(self._build_storage_page())
         self.stack.addWidget(self._build_done_page())
         main_layout.addWidget(self.stack)
 
@@ -75,16 +76,17 @@ class SetupWizard(QDialog):
         title.setStyleSheet("font-size: 28px; font-weight: bold; color: #1e73d2;")
         layout.addWidget(title)
 
-        subtitle = QLabel("Your all-in-one Windows storage management utility")
+        trash = get_trash_label()
+        subtitle = QLabel("Your all-in-one storage management utility")
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet("font-size: 14px; color: #555; margin-bottom: 16px;")
         layout.addWidget(subtitle)
 
         features = QLabel(
             "<ul style='font-size: 13px; line-height: 1.8;'>"
-            "<li><b>Cleaner</b> - Remove temp files, browser caches, and Recycle Bin</li>"
-            "<li><b>Installed Apps</b> - View and uninstall Windows applications</li>"
-            "<li><b>Drive Analyzer</b> - Find the largest files and folders on your drives</li>"
+            f"<li><b>Cleaner</b> - Remove temp files, browser caches, and {trash}</li>"
+            "<li><b>Installed Apps</b> - View and manage installed applications</li>"
+            "<li><b>Storage Analyzer</b> - Find the largest files and folders</li>"
             "<li><b>Smart Advisor</b> - Detect stale, unused large files with risk scoring</li>"
             "</ul>"
         )
@@ -127,63 +129,64 @@ class SetupWizard(QDialog):
         layout.addStretch()
         return w
 
-    def _build_drives_page(self) -> QWidget:
+    def _build_storage_page(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
 
-        header = QLabel("Select drives to manage")
+        header = QLabel("Select storage locations to manage")
         header.setStyleSheet("font-size: 18px; font-weight: bold;")
         header.setAlignment(Qt.AlignCenter)
         layout.addWidget(header)
 
-        desc = QLabel("StorageCleaner detected the following drives on your system.\n"
+        desc = QLabel("StorageCleaner detected the following storage locations on your system.\n"
                        "Select which ones you want to scan and manage.")
         desc.setAlignment(Qt.AlignCenter)
         desc.setStyleSheet("color: #666; margin-bottom: 8px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Scrollable drive list
+        # Scrollable storage list
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: 1px solid #ccc; }")
         scroll_content = QWidget()
-        self.drives_layout = QVBoxLayout(scroll_content)
+        self.storage_layout = QVBoxLayout(scroll_content)
 
-        detected = detect_all_drives()
+        detected = detect_all_storage()
 
         if not detected:
-            no_drives = QLabel("No drives detected on this system.")
-            no_drives.setStyleSheet("color: red; font-weight: bold; padding: 20px;")
-            no_drives.setAlignment(Qt.AlignCenter)
-            self.drives_layout.addWidget(no_drives)
+            no_storage = QLabel("No storage locations detected on this system.")
+            no_storage.setStyleSheet("color: red; font-weight: bold; padding: 20px;")
+            no_storage.setAlignment(Qt.AlignCenter)
+            self.storage_layout.addWidget(no_storage)
         else:
-            for drive in detected:
-                letter = drive["letter"]
-                total = human_bytes(drive["total"])
-                used = human_bytes(drive["used"])
-                free = human_bytes(drive["free"])
+            for storage in detected:
+                sid = storage["id"]
+                label = storage["label"]
+                total = human_bytes(storage["total"])
+                used = human_bytes(storage["used"])
+                free = human_bytes(storage["free"])
 
-                pct = int((drive["used"] / max(drive["total"], 1)) * 100)
+                pct = int((storage["used"] / max(storage["total"], 1)) * 100)
 
                 cb = QCheckBox(
-                    f"  {letter}:     Total: {total}  |  Used: {used} ({pct}%)  |  Free: {free}"
+                    f"  {label}     Total: {total}  |  Used: {used} ({pct}%)  |  Free: {free}"
                 )
                 cb.setChecked(True)
                 cb.setStyleSheet("font-size: 12px; padding: 6px 4px;")
-                self._drive_checkboxes[letter] = cb
-                self.drives_layout.addWidget(cb)
+                self._storage_checkboxes[sid] = cb
+                self.storage_layout.addWidget(cb)
 
-        self.drives_layout.addStretch()
+        self.storage_layout.addStretch()
         scroll.setWidget(scroll_content)
         layout.addWidget(scroll)
 
         # Warning label (hidden by default)
-        self.drive_warning = QLabel("Please select at least one drive.")
-        self.drive_warning.setStyleSheet("color: red; font-weight: bold;")
-        self.drive_warning.setAlignment(Qt.AlignCenter)
-        self.drive_warning.setVisible(False)
-        layout.addWidget(self.drive_warning)
+        self.storage_warning = QLabel("Please select at least one storage location.")
+        self.storage_warning.setStyleSheet("color: red; font-weight: bold;")
+        self.storage_warning.setAlignment(Qt.AlignCenter)
+        self.storage_warning.setVisible(False)
+        layout.addWidget(self.storage_warning)
 
         return w
 
@@ -237,14 +240,14 @@ class SetupWizard(QDialog):
             self.user_name = self.name_input.text().strip()
 
         if idx == 2:
-            self.selected_drives = [
-                letter for letter, cb in self._drive_checkboxes.items()
+            self.selected_storage = [
+                sid for sid, cb in self._storage_checkboxes.items()
                 if cb.isChecked()
             ]
-            if not self.selected_drives:
-                self.drive_warning.setVisible(True)
+            if not self.selected_storage:
+                self.storage_warning.setVisible(True)
                 return
-            self.drive_warning.setVisible(False)
+            self.storage_warning.setVisible(False)
             self._populate_summary()
 
         if idx == 3:
@@ -256,24 +259,36 @@ class SetupWizard(QDialog):
 
     def _populate_summary(self):
         name_display = self.user_name or "(not set)"
-        drives_display = ", ".join(f"{d}:" for d in sorted(self.selected_drives))
+        # Build display labels from storage IDs
+        all_storage = detect_all_storage()
+        label_map = {s["id"]: s["label"] for s in all_storage}
+        storage_display = ", ".join(
+            label_map.get(sid, sid) for sid in sorted(self.selected_storage)
+        )
         self.summary_label.setText(
             f"<b>Name:</b> {name_display}<br><br>"
-            f"<b>Managed drives:</b> {drives_display}<br><br>"
+            f"<b>Managed locations:</b> {storage_display}<br><br>"
             "Click <b>Finish</b> to launch StorageCleaner."
         )
 
     def _save_and_finish(self):
         self.settings.setValue("setup/completed", True)
         self.settings.setValue("setup/user_name", self.user_name)
+        self.settings.setValue("setup/selected_storage",
+                               ",".join(sorted(self.selected_storage)))
+        # Also save old key for backward compat
         self.settings.setValue("setup/selected_drives",
-                               ",".join(sorted(self.selected_drives)))
+                               ",".join(sorted(self.selected_storage)))
         self.accept()
 
     # ---- Public accessors ----
 
+    def get_selected_storage(self) -> List[str]:
+        return sorted(self.selected_storage)
+
     def get_selected_drives(self) -> List[str]:
-        return sorted(self.selected_drives)
+        """Backward-compat wrapper."""
+        return self.get_selected_storage()
 
     def get_user_name(self) -> str:
         return self.user_name

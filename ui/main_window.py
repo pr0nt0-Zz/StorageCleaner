@@ -17,6 +17,12 @@ from core.cleaner import folder_size_bytes, delete_contents, empty_recycle_bin
 from core.apps import list_installed_apps
 from core.drive_scan import top_largest_folders, top_largest_files
 from core.advisor import scan_stale_files
+from core.platform_utils import (
+    IS_WINDOWS, IS_LINUX,
+    get_elevation_hint, get_trash_label,
+    detect_all_storage, storage_exists, get_storage_path, storage_usage,
+    open_in_file_manager, open_text_file, open_system_apps_settings,
+)
 
 logger = get_logger("StorageCleaner.ui")
 
@@ -168,14 +174,19 @@ class AdvisorWorker(QThread):
 # Main Window
 # -------------------------
 class MainWindow(QMainWindow):
-    def __init__(self, selected_drives: List[str] = None, user_name: str = ""):
+    def __init__(self, selected_storage: List[str] = None, user_name: str = ""):
         super().__init__()
-        self.setWindowTitle("StorageCleaner (Windows 11) - All-in-one")
+        self.setWindowTitle("StorageCleaner - Storage Management")
         self.resize(1100, 720)
 
         self.settings = QSettings("StorageCleaner", "StorageCleaner")
-        self.selected_drives = selected_drives or ["C"]
+        self.selected_storage = selected_storage or (["C"] if IS_WINDOWS else ["root"])
         self.user_name = user_name
+
+        # Build a label map from detected storage
+        self._storage_label_map: Dict[str, str] = {}
+        self._storage_path_map: Dict[str, str] = {}
+        self._refresh_storage_maps()
 
         self.targets: List[CleanTarget] = get_clean_targets(empty_recycle_bin)
         self.sizes: Dict[str, int] = {}
@@ -185,7 +196,7 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget()
         tabs.addTab(self._build_cleaner_tab(), "Cleaner")
         tabs.addTab(self._build_apps_tab(), "Installed Apps")
-        tabs.addTab(self._build_drives_tab(), "Drives")
+        tabs.addTab(self._build_drives_tab(), "Storage")
         tabs.addTab(self._build_advisor_tab(), "Smart Advisor")
 
         self.setCentralWidget(tabs)
@@ -193,6 +204,17 @@ class MainWindow(QMainWindow):
         self._build_status_bar()
         self._update_admin_banner()
         self._load_settings()
+
+    def _refresh_storage_maps(self):
+        all_storage = detect_all_storage()
+        self._storage_label_map = {s["id"]: s["label"] for s in all_storage}
+        self._storage_path_map = {s["id"]: s["path"] for s in all_storage}
+
+    def _get_storage_label(self, sid: str) -> str:
+        return self._storage_label_map.get(sid, sid)
+
+    def _get_storage_path(self, sid: str) -> str:
+        return self._storage_path_map.get(sid, get_storage_path(sid))
 
     # -------------------------
     # Cleaner Tab
@@ -247,14 +269,14 @@ class MainWindow(QMainWindow):
 
     def _update_admin_banner(self):
         greeting = f"Welcome, {self.user_name}!  |  " if self.user_name else ""
+        hint = get_elevation_hint()
         if is_admin():
             self.admin_label.setText(
                 f"{greeting}Running as Admin: YES (system cleaning enabled)"
             )
         else:
             self.admin_label.setText(
-                f"{greeting}Running as Admin: NO (some system folders may fail; "
-                "right-click EXE -> Run as administrator)"
+                f"{greeting}Running as Admin: NO (some system folders may fail; {hint})"
             )
         self.admin_label.setStyleSheet("font-weight: 600;")
 
@@ -285,6 +307,11 @@ class MainWindow(QMainWindow):
 
         help_menu = menu_bar.addMenu("Help")
 
+        guide_action = help_menu.addAction("User Guide")
+        guide_action.triggered.connect(self._show_user_guide)
+
+        help_menu.addSeparator()
+
         setup_action = help_menu.addAction("Run Setup Wizard...")
         setup_action.triggered.connect(self._rerun_setup_wizard)
 
@@ -299,21 +326,29 @@ class MainWindow(QMainWindow):
         log_folder_action = help_menu.addAction("Open Log Folder")
         log_folder_action.triggered.connect(self._open_log_folder)
 
+    def _show_user_guide(self):
+        from ui.user_guide import UserGuideDialog
+        dlg = UserGuideDialog(parent=self)
+        dlg.exec()
+
     def _show_about(self):
+        trash = get_trash_label()
+        os_info = f"{platform.system()} {platform.release()}"
         QMessageBox.about(
             self, "About StorageCleaner",
-            "<h3>StorageCleaner v1.0</h3>"
-            "<p>A Windows 11 storage management and disk cleaning utility.</p>"
+            "<h3>StorageCleaner v1.1</h3>"
+            f"<p>A cross-platform storage management and disk cleaning utility.</p>"
+            f"<p>Running on: {os_info}</p>"
             "<p><b>Features:</b></p>"
             "<ul>"
-            "<li><b>Cleaner</b> - Remove temp files, browser caches, and Recycle Bin contents</li>"
-            "<li><b>Installed Apps</b> - View and uninstall Windows applications from the registry</li>"
-            "<li><b>Drives</b> - Scan and identify the largest files and folders on your drives</li>"
-            "<li><b>Smart Advisor</b> - Find stale, unused large files with a risk score to help you decide what to remove</li>"
+            f"<li><b>Cleaner</b> - Remove temp files, browser caches, and {trash} contents</li>"
+            "<li><b>Installed Apps</b> - View and manage installed applications</li>"
+            "<li><b>Storage</b> - Scan and identify the largest files and folders</li>"
+            "<li><b>Smart Advisor</b> - Find stale, unused large files with a risk score</li>"
             "</ul>"
             "<p><b>Tips:</b></p>"
             "<ul>"
-            "<li>Run as Administrator for full system cleaning (Windows Temp, Update Cache)</li>"
+            f"<li>Run with elevated privileges for full system cleaning ({get_elevation_hint()})</li>"
             "<li>Close browsers before cleaning their caches for best results</li>"
             "<li>All deletions are permanent - review carefully before confirming</li>"
             "<li>Check the log file (Help > Open Log File) for a full audit trail</li>"
@@ -324,14 +359,14 @@ class MainWindow(QMainWindow):
     def _open_log_file(self):
         try:
             if LOG_FILE.exists():
-                subprocess.run(["notepad", str(LOG_FILE)], check=False)
+                open_text_file(str(LOG_FILE))
             else:
                 QMessageBox.information(self, "No log yet", f"Log file does not exist yet:\n{LOG_FILE}")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to open log file: {e}")
 
     def _open_log_folder(self):
-        open_in_explorer(str(LOG_FILE.parent))
+        open_in_file_manager(str(LOG_FILE.parent))
 
     def _populate_targets_table(self):
         self.targets_table.setRowCount(0)
@@ -433,10 +468,11 @@ class MainWindow(QMainWindow):
         # warn about admin-required targets
         needs_admin = [t.title for t in self.targets if t.key in keys and t.requires_admin]
         if needs_admin and not is_admin():
+            hint = get_elevation_hint()
             QMessageBox.warning(
                 self, "Admin recommended",
                 "Some selected items may fail without admin:\n- " + "\n- ".join(needs_admin) +
-                "\n\nTip: Close app and re-run as Administrator."
+                f"\n\nTip: Close app and re-run with elevated privileges ({hint})."
             )
 
         resp = QMessageBox.question(
@@ -503,7 +539,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(top)
 
         btns = QHBoxLayout()
-        self.btn_open_settings = QPushButton("Open Windows Installed Apps")
+        self.btn_open_settings = QPushButton("Open System Apps Settings")
         self.btn_uninstall = QPushButton("Uninstall Selected")
         self.cb_safe_mode = QCheckBox("Safe mode (view-only)")
         self.cb_safe_mode.setChecked(True)
@@ -513,13 +549,17 @@ class MainWindow(QMainWindow):
         layout.addLayout(btns)
 
         self.apps_table = QTableWidget(0, 6)
-        self.apps_table.setHorizontalHeaderLabels(["Name", "Version", "Publisher", "InstallDate", "Size (est.)", "Uninstall String"])
+        self.apps_table.setHorizontalHeaderLabels(["Name", "Version", "Publisher", "InstallDate", "Size (est.)", "Uninstall"])
         self.apps_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.apps_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         self.apps_table.setAlternatingRowColors(True)
         layout.addWidget(self.apps_table)
 
-        hint = QLabel("Uninstall safely via Settings → Apps → Installed apps. (Safe mode ON blocks uninstall execution.)")
+        if IS_WINDOWS:
+            hint_text = "Uninstall safely via Settings > Apps > Installed apps. (Safe mode ON blocks uninstall execution.)"
+        else:
+            hint_text = "Uninstall column shows the terminal command. Copy and run it in your terminal. (Safe mode ON blocks execution.)"
+        hint = QLabel(hint_text)
         hint.setStyleSheet("color: #666;")
         layout.addWidget(hint)
 
@@ -533,7 +573,7 @@ class MainWindow(QMainWindow):
 
     def _open_installed_apps_settings(self):
         try:
-            subprocess.run(["cmd", "/c", "start", "ms-settings:appsfeatures"], shell=False)
+            open_system_apps_settings()
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e))
 
@@ -615,13 +655,23 @@ class MainWindow(QMainWindow):
         uninstall_str = (self.apps_table.item(row, 5).text() or "").strip()
 
         if not uninstall_str:
-            QMessageBox.warning(self, "No uninstall command", "This app has no UninstallString in registry.")
+            QMessageBox.warning(self, "No uninstall command", "This app has no uninstall command available.")
             return
 
+        if IS_LINUX:
+            # On Linux, show the command for the user to run in terminal
+            QMessageBox.information(
+                self, "Uninstall Command",
+                f"To uninstall <b>{name}</b>, run this command in your terminal:\n\n"
+                f"<code>{uninstall_str}</code>\n\n"
+                "Copy the command above and paste it into a terminal window."
+            )
+            return
+
+        # Windows: validate and execute
         cmd = uninstall_str
         low = cmd.lower()
 
-        # Validate the uninstall command for safety
         dangerous_patterns = ["format ", "del /", "rd /s", "rmdir /s", "powershell", "curl ", "wget ",
                               "invoke-", "iex ", "downloadstring", "net user", "reg delete", "shutdown"]
         for pattern in dangerous_patterns:
@@ -631,7 +681,7 @@ class MainWindow(QMainWindow):
                     self, "Suspicious command blocked",
                     f"The uninstall command for '{name}' contains a suspicious pattern ('{pattern}') "
                     f"and was blocked for safety.\n\nCommand:\n{cmd}\n\n"
-                    "You can uninstall this app manually via Windows Settings."
+                    "You can uninstall this app manually via system settings."
                 )
                 return
 
@@ -657,7 +707,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Failed to launch", str(e))
 
     # -------------------------
-    # Drives Tab
+    # Storage Tab
     # -------------------------
     def _build_drives_tab(self) -> QWidget:
         w = QWidget()
@@ -668,7 +718,7 @@ class MainWindow(QMainWindow):
 
         # usage refresh
         usage_row = QHBoxLayout()
-        self.btn_usage = QPushButton("Refresh Drive Usage")
+        self.btn_usage = QPushButton("Refresh Storage Usage")
         usage_row.addWidget(self.btn_usage)
         self.drive_progress = QProgressBar()
         self.drive_progress.setValue(0)
@@ -676,12 +726,12 @@ class MainWindow(QMainWindow):
         layout.addLayout(usage_row)
 
         # scan controls
-        scan_box = QGroupBox("Drive Analyzer")
+        scan_box = QGroupBox("Storage Analyzer")
         scan_l = QHBoxLayout(scan_box)
 
-        scan_l.addWidget(QLabel("Drive:"))
+        scan_l.addWidget(QLabel("Location:"))
         self.drive_combo = QComboBox()
-        self._populate_drive_combo(self.drive_combo)
+        self._populate_storage_combo(self.drive_combo)
         scan_l.addWidget(self.drive_combo)
 
         self.btn_scan_folders = QPushButton("Scan Top Folders")
@@ -720,36 +770,40 @@ class MainWindow(QMainWindow):
         self._refresh_drive_usage()
         return w
 
-    def _populate_drive_combo(self, combo: QComboBox):
+    def _populate_storage_combo(self, combo: QComboBox):
         combo.clear()
-        for letter in self.selected_drives:
-            combo.addItem(f"{letter}:", letter)
+        for sid in self.selected_storage:
+            label = self._get_storage_label(sid)
+            combo.addItem(label, sid)
 
     def _start_drive_scan_from_combo(self, mode: str):
-        letter = self.drive_combo.currentData()
-        if not letter:
-            QMessageBox.information(self, "No drive", "No drive selected.")
+        sid = self.drive_combo.currentData()
+        if not sid:
+            QMessageBox.information(self, "No location", "No storage location selected.")
             return
-        self._start_drive_scan(f"{letter}:\\", mode)
+        path = self._get_storage_path(sid)
+        self._start_drive_scan(path, mode)
 
     def _drive_log(self, msg: str):
         self.drive_log.append(msg)
 
     def _refresh_drive_usage(self):
         parts = []
-        for letter in self.selected_drives:
-            if drive_exists(letter):
-                total, used, free = drive_usage(f"{letter}:\\")
-                parts.append(f"{letter}:  Total {human_bytes(total)} | Used {human_bytes(used)} | Free {human_bytes(free)}")
+        for sid in self.selected_storage:
+            if storage_exists(sid):
+                path = self._get_storage_path(sid)
+                total, used, free = storage_usage(path)
+                label = self._get_storage_label(sid)
+                parts.append(f"{label}  Total {human_bytes(total)} | Used {human_bytes(used)} | Free {human_bytes(free)}")
             else:
-                parts.append(f"{letter}:  Not detected")
+                label = self._get_storage_label(sid)
+                parts.append(f"{label}  Not detected")
         self.drive_info.setText("  |  ".join(parts))
 
     def _start_drive_scan(self, root: str, mode: str):
-        # guard: drive might not exist
-        drive_letter = root[0].upper()
-        if not drive_exists(drive_letter):
-            QMessageBox.information(self, "Drive not found", f"Drive {drive_letter}: is not detected on this system.")
+        # guard: path must exist
+        if not Path(root).exists():
+            QMessageBox.information(self, "Location not found", f"Storage location not found: {root}")
             return
 
         # Typical safe defaults
@@ -787,10 +841,10 @@ class MainWindow(QMainWindow):
             self.drive_table.setItem(r, 3, QTableWidgetItem(path))
 
             btn = QPushButton("Open")
-            btn.clicked.connect(lambda checked=False, p=path: open_in_explorer(p))
+            btn.clicked.connect(lambda checked=False, p=path: open_in_file_manager(p))
             self.drive_table.setCellWidget(r, 4, btn)
 
-        self._drive_log("=== Drive scan done ===")
+        self._drive_log("=== Scan done ===")
 
     def _toggle_drive_select_all(self, state):
         checked = state == Qt.Checked.value
@@ -881,17 +935,17 @@ class MainWindow(QMainWindow):
         self.adv_size_combo.setCurrentIndex(2)  # default 500 MB
         ctrl.addWidget(self.adv_size_combo)
 
-        ctrl.addWidget(QLabel("Drive:"))
+        ctrl.addWidget(QLabel("Location:"))
         self.adv_drive_combo = QComboBox()
-        self._populate_drive_combo(self.adv_drive_combo)
+        self._populate_storage_combo(self.adv_drive_combo)
         ctrl.addWidget(self.adv_drive_combo)
 
-        self.btn_adv_scan = QPushButton("Scan Drive")
+        self.btn_adv_scan = QPushButton("Scan Location")
         ctrl.addWidget(self.btn_adv_scan)
         layout.addLayout(ctrl)
 
         # Dashboard
-        self.adv_dashboard = QLabel("Scan a drive to find stale files.")
+        self.adv_dashboard = QLabel("Scan a storage location to find stale files.")
         self.adv_dashboard.setStyleSheet("font-weight: 600;")
         layout.addWidget(self.adv_dashboard)
 
@@ -943,16 +997,16 @@ class MainWindow(QMainWindow):
         return int(text.replace("MB", "").strip())
 
     def _start_advisor_scan_from_combo(self):
-        letter = self.adv_drive_combo.currentData()
-        if not letter:
-            QMessageBox.information(self, "No drive", "No drive selected.")
+        sid = self.adv_drive_combo.currentData()
+        if not sid:
+            QMessageBox.information(self, "No location", "No storage location selected.")
             return
-        self._start_advisor_scan(f"{letter}:\\")
+        path = self._get_storage_path(sid)
+        self._start_advisor_scan(path)
 
     def _start_advisor_scan(self, root: str):
-        drive_letter = root[0].upper()
-        if not drive_exists(drive_letter):
-            QMessageBox.information(self, "Drive not found", f"Drive {drive_letter}: is not detected on this system.")
+        if not Path(root).exists():
+            QMessageBox.information(self, "Location not found", f"Storage location not found: {root}")
             return
 
         min_size_mb = self._get_adv_min_size_mb()
@@ -1096,16 +1150,18 @@ class MainWindow(QMainWindow):
         self._update_status_bar()
 
     def _update_status_bar(self):
-        drives_str = ", ".join(f"{d}:" for d in sorted(self.selected_drives))
+        labels = [self._get_storage_label(sid) for sid in sorted(self.selected_storage)]
+        locations_str = ", ".join(labels)
         total_storage = 0
-        for letter in self.selected_drives:
-            if drive_exists(letter):
-                total, _, _ = drive_usage(f"{letter}:\\")
+        for sid in self.selected_storage:
+            if storage_exists(sid):
+                path = self._get_storage_path(sid)
+                total, _, _ = storage_usage(path)
                 total_storage += total
 
         os_info = f"{platform.system()} {platform.release()}"
         msg = (
-            f"Managed drives: {drives_str}  |  "
+            f"Managed locations: {locations_str}  |  "
             f"Total storage: {human_bytes(total_storage)}  |  "
             f"OS: {os_info}"
         )
@@ -1120,19 +1176,21 @@ class MainWindow(QMainWindow):
         wizard = SetupWizard(self.settings, parent=self)
         # Pre-populate with current settings
         wizard.name_input.setText(self.user_name)
-        for letter, cb in wizard._drive_checkboxes.items():
-            cb.setChecked(letter in self.selected_drives)
+        for sid, cb in wizard._storage_checkboxes.items():
+            cb.setChecked(sid in self.selected_storage)
 
         if wizard.exec() == wizard.Accepted:
-            self.selected_drives = wizard.get_selected_drives()
+            self.selected_storage = wizard.get_selected_storage()
             self.user_name = wizard.get_user_name()
 
-            # Rebuild drive combo boxes
-            self._populate_drive_combo(self.drive_combo)
-            self._populate_drive_combo(self.adv_drive_combo)
+            # Refresh storage maps
+            self._refresh_storage_maps()
+
+            # Rebuild combo boxes
+            self._populate_storage_combo(self.drive_combo)
+            self._populate_storage_combo(self.adv_drive_combo)
 
             # Refresh UI
             self._update_admin_banner()
             self._refresh_drive_usage()
             self._update_status_bar()
-

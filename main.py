@@ -7,18 +7,23 @@ from pathlib import Path
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
+from core.platform_utils import get_default_font, detect_all_storage, IS_WINDOWS
 from ui.main_window import MainWindow
 from ui.setup_wizard import SetupWizard
 
 
 def main():
     app = QApplication(sys.argv)
-    app.setFont(QFont("Segoe UI", 10))
+    app.setFont(QFont(get_default_font(), 10))
 
     # Set app icon for taskbar and window title bar
     # PyInstaller stores data files in sys._MEIPASS when bundled
     base_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+
+    # Try .ico first (Windows), then .png (Linux)
     icon_path = base_dir / "app_icon.ico"
+    if not icon_path.exists():
+        icon_path = base_dir / "app_icon.png"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
@@ -30,17 +35,24 @@ def main():
         if wizard.exec() != wizard.Accepted:
             sys.exit(0)
 
-    # Read saved settings
-    selected_drives_str = settings.value("setup/selected_drives", "", type=str)
-    drive_list = [d.strip() for d in selected_drives_str.split(",") if d.strip()]
+    # Read saved settings - try new key first, fall back to old key
+    storage_str = settings.value("setup/selected_storage", "", type=str)
+    if not storage_str:
+        storage_str = settings.value("setup/selected_drives", "", type=str)
+    storage_list = [s.strip() for s in storage_str.split(",") if s.strip()]
     user_name = settings.value("setup/user_name", "", type=str)
 
-    # Fallback: if no drives configured, use system drive
-    if not drive_list:
-        sys_drive = os.environ.get("SystemDrive", "C:")[:1]
-        drive_list = [sys_drive]
+    # Fallback: if no storage configured, use first detected
+    if not storage_list:
+        all_storage = detect_all_storage()
+        if all_storage:
+            storage_list = [all_storage[0]["id"]]
+        elif IS_WINDOWS:
+            storage_list = [os.environ.get("SystemDrive", "C:")[:1]]
+        else:
+            storage_list = ["root"]
 
-    win = MainWindow(selected_drives=drive_list, user_name=user_name)
+    win = MainWindow(selected_storage=storage_list, user_name=user_name)
     win.show()
     sys.exit(app.exec())
 

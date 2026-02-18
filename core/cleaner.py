@@ -1,9 +1,9 @@
 import os
-import subprocess
 from pathlib import Path
 from typing import Tuple
 
 from core.utils import get_logger
+from core.platform_utils import empty_trash
 
 logger = get_logger("StorageCleaner.cleaner")
 
@@ -60,20 +60,7 @@ def delete_contents(path: Path) -> Tuple[int, int, int]:
 
 def empty_recycle_bin() -> Tuple[bool, str]:
     """
-    Clears recycle bin using PowerShell.
+    Cross-platform trash/recycle bin clearing.
+    Delegates to platform_utils.empty_trash().
     """
-    logger.info("DELETE_START: Emptying Recycle Bin")
-    try:
-        p = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", "Clear-RecycleBin -Force"],
-            capture_output=True, text=True
-        )
-        if p.returncode == 0:
-            logger.info("DELETE_DONE: Recycle Bin emptied successfully")
-            return (True, "Recycle Bin emptied.")
-        msg = (p.stderr or p.stdout or "Failed to empty Recycle Bin.").strip()
-        logger.warning(f"DELETE_FAILED: Recycle Bin - {msg}")
-        return (False, msg)
-    except Exception as e:
-        logger.error(f"DELETE_ERROR: Recycle Bin - {e}")
-        return (False, f"Exception: {e}")
+    return empty_trash()
