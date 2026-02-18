@@ -203,7 +203,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self._build_apps_tab(), "Installed Apps")
         tabs.addTab(self._build_drives_tab(), "Storage")
         tabs.addTab(self._build_advisor_tab(), "AI Advisor")
-        tabs.addTab(self._build_chatbot_tab(), "Chatbot")
+        tabs.addTab(self._build_chatbot_tab(), "StorageAdvisor")
 
         self.setCentralWidget(tabs)
         self._build_menu_bar()
@@ -351,7 +351,7 @@ class MainWindow(QMainWindow):
             "<li><b>Installed Apps</b> - View and manage installed applications</li>"
             "<li><b>Storage</b> - Scan and identify the largest files and folders</li>"
             "<li><b>AI Advisor</b> - ML-powered file analysis with duplicate detection and safety scoring</li>"
-            "<li><b>Chatbot</b> - In-app assistant to help you use StorageCleaner</li>"
+            "<li><b>StorageAdvisor</b> - In-app storage assistant for safe disk cleanup guidance</li>"
             "</ul>"
             "<p><b>Tips:</b></p>"
             "<ul>"
@@ -1227,7 +1227,7 @@ class MainWindow(QMainWindow):
         self._advisor_log(f"=== Delete done. OK={ok_count}, FAIL={fail_count} ===")
 
     # -------------------------
-    # Chatbot Tab
+    # StorageAdvisor Tab
     # -------------------------
     def _build_chatbot_tab(self) -> QWidget:
         w = QWidget()
@@ -1244,7 +1244,7 @@ class MainWindow(QMainWindow):
         # Input row
         input_row = QHBoxLayout()
         self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Type your question here...")
+        self.chat_input.setPlaceholderText("Ask StorageAdvisor a question...")
         self.chat_input.setStyleSheet("font-size: 15px; padding: 8px;")
         self.chat_input.returnPressed.connect(self._send_chat_message)
         input_row.addWidget(self.chat_input)
@@ -1258,7 +1258,7 @@ class MainWindow(QMainWindow):
         # Quick action buttons
         quick_row = QHBoxLayout()
         quick_row.addWidget(QLabel("Quick:"))
-        for label in ["How to clean?", "AI Advisor help", "Storage tips", "What can you do?"]:
+        for label in ["Quick Wins", "Hard Stops", "Is this safe?", "Storage Tips", "How to free space?"]:
             btn = QPushButton(label)
             btn.setStyleSheet("font-size: 13px;")
             btn.clicked.connect(lambda checked, q=label: self._send_quick_question(q))
@@ -1275,7 +1275,7 @@ class MainWindow(QMainWindow):
         self.chat_display.append(
             '<div style="background-color: #d6eaf8; border-radius: 8px; '
             'padding: 10px; margin: 6px 40px 6px 0px;">'
-            '<b style="color: #1a5276;">Bot:</b><br>'
+            '<b style="color: #1a5276;">StorageAdvisor:</b><br>'
             f'{html_content}</div>'
         )
         self.chat_display.verticalScrollBar().setValue(

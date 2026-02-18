@@ -1,13 +1,17 @@
 """
-Local chatbot engine for StorageCleaner.
+StorageAdvisor - Cross-platform storage assistant chatbot.
 
-Keyword-matching chatbot that answers questions about the app's features,
-gives storage cleaning tips, and guides users. No internet required.
-Works on Windows and Linux.
+A local, offline chatbot embedded in StorageCleaner that helps users free
+disk space safely using a strict decision framework:
+  SAFE_DELETE  - low-risk temp/cache items, queue for deletion
+  REVIEW       - user data or unknown; recommend manual inspection
+  DO_NOT_DELETE - OS/system paths; hard warning
+
+No internet, no external APIs. Works on Windows and Linux.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Set
 
 from core.platform_utils import IS_WINDOWS, IS_LINUX, get_trash_label, get_elevation_hint
@@ -25,6 +29,41 @@ class _KBEntry:
 
 
 # ---------------------------------------------------------------------------
+# Safety constants
+# ---------------------------------------------------------------------------
+
+_WIN_PROTECTED = [
+    "C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)",
+    "C:\\ProgramData", "System Volume Information",
+    "pagefile.sys", "hiberfil.sys", "swapfile.sys",
+]
+
+_LINUX_PROTECTED = [
+    "/bin", "/sbin", "/lib", "/lib64", "/usr", "/etc", "/boot",
+    "/sys", "/proc", "/dev", "/run", "/var/lib/dpkg", "/var/lib/apt/lists",
+]
+
+_SAFE_DELETE_ITEMS_WIN = [
+    ("User Temp files", "%TEMP%", "Usually 200 MB - 2 GB"),
+    ("System Temp files", "C:\\Windows\\Temp", "100 MB - 1 GB (needs admin)"),
+    ("Browser caches", "Chrome / Firefox / Edge cache", "500 MB - 5 GB"),
+    ("Recycle Bin", "Recycle Bin contents", "Varies"),
+    ("Thumbnail cache", "Explorer thumbnail DB", "50 - 500 MB"),
+    ("Windows Update cleanup", "Old update files", "1 - 10 GB"),
+]
+
+_SAFE_DELETE_ITEMS_LINUX = [
+    ("User cache", "~/.cache", "500 MB - 5 GB"),
+    ("APT package cache", "/var/cache/apt/archives", "500 MB - 3 GB"),
+    ("Browser caches", "Chrome / Firefox cache dirs", "500 MB - 5 GB"),
+    ("Trash", "~/.local/share/Trash", "Varies"),
+    ("Thumbnail cache", "~/.cache/thumbnails", "50 - 500 MB"),
+    ("Journal logs", "/var/log/journal (old)", "200 MB - 2 GB"),
+    ("Snap cache", "~/snap/*/common", "100 MB - 1 GB"),
+]
+
+
+# ---------------------------------------------------------------------------
 # Knowledge base
 # ---------------------------------------------------------------------------
 
@@ -33,22 +72,44 @@ def _build_kb() -> List[_KBEntry]:
     elevate = get_elevation_hint()
     os_name = "Windows" if IS_WINDOWS else "Linux"
 
+    safe_items = _SAFE_DELETE_ITEMS_WIN if IS_WINDOWS else _SAFE_DELETE_ITEMS_LINUX
+    protected = _WIN_PROTECTED if IS_WINDOWS else _LINUX_PROTECTED
+
+    # Build quick wins HTML
+    quick_wins_rows = ""
+    for name, loc, est in safe_items:
+        quick_wins_rows += (
+            f"<tr><td><b>{name}</b></td>"
+            f"<td><code>{loc}</code></td>"
+            f"<td>{est}</td>"
+            f"<td style='color:green;'><b>SAFE_DELETE</b></td></tr>"
+        )
+
+    quick_wins_html = (
+        "<table border='0' cellpadding='4' cellspacing='2'>"
+        "<tr><td><b>Item</b></td><td><b>Location</b></td>"
+        "<td><b>Est. Size</b></td><td><b>Classification</b></td></tr>"
+        f"{quick_wins_rows}</table>"
+    )
+
+    # Build protected paths HTML
+    protected_html = "".join(f"<li><code>{p}</code></li>" for p in protected)
+
     return [
         # --- Greetings ---
         _KBEntry(
             keywords={"hi", "hello", "hey", "greetings", "yo", "sup"},
             patterns=["hi", "hello", "hey there", "good morning", "good afternoon"],
             answer=(
-                "Hello! I'm the <b>StorageCleaner Bot</b>. I can help you learn how to use this app.<br><br>"
-                "Ask me about any of these topics:<br>"
+                f"Hello! I'm <b>StorageAdvisor</b>, your {os_name} storage assistant.<br><br>"
+                "I help you free disk space <b>safely</b>. Every item I discuss gets a classification:<br>"
                 "<ul>"
-                "<li><b>Cleaner</b> - Scan and delete junk files</li>"
-                "<li><b>Installed Apps</b> - View and manage apps</li>"
-                "<li><b>Storage</b> - Find large files and folders</li>"
-                "<li><b>AI Advisor</b> - Smart file deletion recommendations</li>"
-                "<li><b>Setup</b> - Configuration and first-run wizard</li>"
-                "<li><b>Tips</b> - Best practices for storage management</li>"
+                "<li><span style='color:green;'><b>SAFE_DELETE</b></span> - Low-risk, queue for deletion</li>"
+                "<li><span style='color:#CC8800;'><b>REVIEW</b></span> - Check before removing</li>"
+                "<li><span style='color:red;'><b>DO_NOT_DELETE</b></span> - System-critical, hands off</li>"
                 "</ul>"
+                "Ask me: <i>\"What can I safely delete?\"</i>, <i>\"Quick wins\"</i>, "
+                "<i>\"Is this folder safe?\"</i>, or <i>\"Storage tips\"</i>"
             ),
         ),
 
@@ -56,7 +117,7 @@ def _build_kb() -> List[_KBEntry]:
         _KBEntry(
             keywords={"thanks", "thank", "thx", "appreciate"},
             patterns=["thank you", "thanks a lot", "thx"],
-            answer="You're welcome! Let me know if you have any other questions about StorageCleaner.",
+            answer="You're welcome! Remember: always confirm before deleting. Stay safe out there.",
         ),
 
         # --- Help / What can you do ---
@@ -64,263 +125,293 @@ def _build_kb() -> List[_KBEntry]:
             keywords={"help", "can", "do", "support", "feature", "features"},
             patterns=["what can you do", "help me", "what do you support", "list features"],
             answer=(
-                "I can answer questions about <b>StorageCleaner</b>. Here are some things you can ask:<br><br>"
+                "I'm <b>StorageAdvisor</b>. I can help you with:<br><br>"
                 "<ul>"
-                "<li><i>How do I clean junk files?</i></li>"
-                "<li><i>What is the AI Advisor?</i></li>"
-                "<li><i>How do I find large files?</i></li>"
-                "<li><i>How to uninstall an app?</i></li>"
-                "<li><i>How do I run as admin?</i></li>"
-                "<li><i>What are duplicates?</i></li>"
-                "<li><i>Give me storage tips</i></li>"
+                "<li><i>\"What can I safely delete?\"</i> - Quick wins list with SAFE_DELETE items</li>"
+                "<li><i>\"Is [folder] safe to delete?\"</i> - I'll classify it</li>"
+                "<li><i>\"How to free space?\"</i> - Step-by-step cleanup guide</li>"
+                "<li><i>\"What should I never delete?\"</i> - Hard stops list</li>"
+                "<li><i>\"Storage tips\"</i> - Hygiene recommendations</li>"
+                "<li><i>\"How does AI Advisor work?\"</i> - ML scoring explained</li>"
+                "<li><i>\"How to use the Cleaner?\"</i> - Tab guides</li>"
                 "</ul>"
-                "<br>Just type your question and I'll do my best to help!"
+                "<br>Every recommendation follows the <b>SAFE_DELETE / REVIEW / DO_NOT_DELETE</b> framework."
             ),
         ),
 
-        # --- What is StorageCleaner ---
+        # --- Quick wins / What can I safely delete ---
         _KBEntry(
-            keywords={"what", "storagecleaner", "about", "app", "application"},
-            patterns=["what is storagecleaner", "what is this app", "about this app", "tell me about"],
+            keywords={"safely", "delete", "quick", "wins", "free", "space", "what"},
+            patterns=["what can i safely delete", "quick wins", "safe to delete", "free up space",
+                       "what should i delete", "what can i delete", "free space"],
             answer=(
-                "<b>StorageCleaner</b> is a cross-platform storage management and disk cleaning tool.<br><br>"
-                "It helps you:<br>"
-                "<ul>"
-                "<li>Clean temp files, browser caches, and system junk</li>"
-                "<li>View and manage installed applications</li>"
-                "<li>Scan storage to find the largest files and folders</li>"
-                "<li>Use AI-powered analysis to identify files safe to delete</li>"
-                "</ul>"
-                f"Currently running on <b>{os_name}</b>."
+                f"<b>Quick Wins</b> - Items classified as <span style='color:green;'><b>SAFE_DELETE</b></span> on {os_name}:<br><br>"
+                f"{quick_wins_html}<br>"
+                "<b>Next step:</b> Go to the <b>Cleaner</b> tab, click <b>Scan</b>, "
+                "check the items above, then click <b>Clean Selected</b>.<br><br>"
+                "For deeper analysis, go to the <b>AI Advisor</b> tab and click <b>AI Scan</b>, "
+                "then use <b>Select All Safe</b> to queue only green-classified files."
             ),
         ),
 
-        # --- Cleaner: How to scan ---
+        # --- What should I never delete / Hard stops ---
         _KBEntry(
-            keywords={"clean", "scan", "junk", "temp", "delete", "remove"},
-            patterns=["how to clean", "how to scan", "clean junk", "delete temp", "remove junk"],
+            keywords={"never", "dont", "dangerous", "break", "destroy", "hard", "stop", "stops"},
+            patterns=["what should i never delete", "hard stops", "never delete", "dangerous files",
+                       "dont delete", "will it break"],
             answer=(
-                "To clean junk files:<br><br>"
+                "<b>Hard Stops</b> - <span style='color:red;'><b>DO_NOT_DELETE</b></span>:<br><br>"
+                f"These paths are system-critical on {os_name}. <b>Never</b> delete or modify them:<br>"
+                f"<ul>{protected_html}</ul>"
+                "<b>StorageAdvisor will never recommend deleting these.</b> "
+                "The AI Advisor automatically excludes them from scan results.<br><br>"
+                "If you see any of these paths suggested elsewhere, <b>do not proceed</b>."
+            ),
+        ),
+
+        # --- Is this folder safe? ---
+        _KBEntry(
+            keywords={"folder", "directory", "path", "safe", "check"},
+            patterns=["is this safe", "is this folder safe", "can i delete this folder",
+                       "check this path", "is it safe to delete"],
+            answer=(
+                "To check if a folder is safe to delete, use this framework:<br><br>"
+                "<span style='color:green;'><b>SAFE_DELETE</b></span> if the path is:<br>"
+                "<ul>"
+                "<li>Inside <code>Temp</code>, <code>Cache</code>, or <code>Thumbnails</code></li>"
+                f"<li>Inside the {trash}</li>"
+                "<li>A browser cache directory</li>"
+                "<li>Inside <code>Downloads</code> (after verifying contents)</li>"
+                "</ul>"
+                "<span style='color:#CC8800;'><b>REVIEW</b></span> if:<br>"
+                "<ul>"
+                "<li>It's in your user profile but you don't recognize it</li>"
+                "<li>It contains documents, media, or project files</li>"
+                "<li><b>Action:</b> Open the folder first and verify contents</li>"
+                "</ul>"
+                "<span style='color:red;'><b>DO_NOT_DELETE</b></span> if:<br>"
+                "<ul>"
+                + (
+                    "<li>It's under <code>C:\\Windows</code>, <code>C:\\Program Files</code>, or <code>C:\\ProgramData</code></li>"
+                    if IS_WINDOWS else
+                    "<li>It's under <code>/usr</code>, <code>/bin</code>, <code>/etc</code>, <code>/boot</code>, or <code>/lib</code></li>"
+                )
+                + "<li>It contains <code>.sys</code>, <code>.dll</code>, <code>.so</code>, or <code>.service</code> files</li>"
+                "</ul>"
+                "<b>Tip:</b> Run the <b>AI Advisor</b> scan - it classifies files automatically using this exact framework."
+            ),
+        ),
+
+        # --- How to free space step by step ---
+        _KBEntry(
+            keywords={"how", "free", "space", "step", "guide", "cleanup", "clean"},
+            patterns=["how to free space", "step by step", "cleanup guide", "how do i clean",
+                       "how to clean", "free disk space"],
+            answer=(
+                f"<b>Step-by-step cleanup guide for {os_name}:</b><br><br>"
+                "<b>Step 1 - Quick Clean</b> (SAFE_DELETE):<br>"
+                "Go to <b>Cleaner</b> tab &rarr; Click <b>Scan</b> &rarr; Check all items &rarr; Click <b>Clean Selected</b><br><br>"
+                "<b>Step 2 - AI Analysis</b> (SAFE_DELETE + REVIEW):<br>"
+                "Go to <b>AI Advisor</b> tab &rarr; Set min size to <b>25 MB</b> &rarr; Click <b>AI Scan</b> &rarr; "
+                "Click <b>Select All Safe</b> (green rows only) &rarr; Click <b>Delete Selected</b><br><br>"
+                "<b>Step 3 - Review yellow rows</b> (REVIEW):<br>"
+                "For each yellow row, right-click the path to open the folder. "
+                "Verify contents before deciding to delete or archive.<br><br>"
+                "<b>Step 4 - Check large files</b>:<br>"
+                "Go to <b>Storage</b> tab &rarr; Click <b>Scan Files</b> to find the biggest items. "
+                "Classify each one before acting.<br><br>"
+                f"<b>Step 5 - Empty {trash}</b>:<br>"
+                f"In <b>Cleaner</b> tab, check <b>{trash}</b> and clean it."
+            ),
+        ),
+
+        # --- Cleaner tab ---
+        _KBEntry(
+            keywords={"cleaner", "tab", "scan", "targets", "junk", "temp"},
+            patterns=["how to use cleaner", "cleaner tab", "clean targets", "what are targets",
+                       "cleaning categories"],
+            answer=(
+                "<b>Cleaner Tab</b> - All items here are classified <span style='color:green;'><b>SAFE_DELETE</b></span>:<br><br>"
                 "<ol>"
-                "<li>Go to the <b>Cleaner</b> tab</li>"
-                "<li>Click <b>Scan</b> to calculate sizes of each clean target</li>"
-                "<li>Check the targets you want to clean (temp files, browser caches, etc.)</li>"
-                "<li>Click <b>Clean Selected</b> to delete them</li>"
+                "<li>Click <b>Scan</b> to calculate sizes of each target</li>"
+                "<li>Review the list - each shows the reclaimable size</li>"
+                "<li>Check the targets you want to clean</li>"
+                "<li>Click <b>Clean Selected</b></li>"
                 "</ol>"
-                "<br><b>Tip:</b> Close your browser before cleaning browser caches for best results."
+                f"<b>Targets include:</b> System temp, User temp, Browser caches, {trash}, Thumbnail cache<br><br>"
+                "<b>Tip:</b> Close browsers before cleaning their caches. "
+                f"Some system targets need {elevate}."
             ),
         ),
 
-        # --- Cleaner: Targets ---
-        _KBEntry(
-            keywords={"target", "targets", "categories", "what", "clean"},
-            patterns=["what are targets", "what can i clean", "clean targets", "cleaning categories"],
-            answer=(
-                "Clean targets are categories of files you can delete:<br><br>"
-                "<ul>"
-                "<li><b>System temp files</b> - Temporary files created by the OS</li>"
-                "<li><b>User temp files</b> - Temporary files in your profile</li>"
-                "<li><b>Browser caches</b> - Chrome, Firefox, Edge cached data</li>"
-                f"<li><b>{trash}</b> - Deleted files waiting to be permanently removed</li>"
-                "<li><b>Thumbnail cache</b> - Cached image previews</li>"
-                "</ul>"
-                "Each target shows its size after scanning so you can decide what to clean."
-            ),
-        ),
-
-        # --- Cleaner: Browser cache ---
+        # --- Browser cache ---
         _KBEntry(
             keywords={"browser", "cache", "chrome", "firefox", "edge"},
             patterns=["browser cache", "chrome cache", "firefox cache", "clear browser"],
             answer=(
-                "StorageCleaner can clean caches for:<br>"
-                "<ul>"
-                "<li><b>Google Chrome</b></li>"
-                "<li><b>Mozilla Firefox</b></li>"
-                "<li><b>Microsoft Edge</b></li>"
-                "</ul>"
-                "<br><b>Important:</b> Close the browser before cleaning its cache, "
-                "otherwise some files may be locked and cannot be deleted."
+                "<b>Browser Caches</b> - <span style='color:green;'><b>SAFE_DELETE</b></span><br><br>"
+                "Supported browsers: <b>Chrome</b>, <b>Firefox</b>, <b>Edge</b><br>"
+                "Estimated size: <b>500 MB - 5 GB</b> typically<br><br>"
+                "<b>Important:</b> Close the browser before cleaning, otherwise files may be locked.<br><br>"
+                "<b>Next step:</b> Go to <b>Cleaner</b> tab &rarr; <b>Scan</b> &rarr; check browser cache items &rarr; <b>Clean Selected</b>"
             ),
         ),
 
-        # --- Cleaner: Recycle Bin / Trash ---
+        # --- Recycle Bin / Trash ---
         _KBEntry(
             keywords={"recycle", "bin", "trash", "empty"},
             patterns=["empty recycle bin", "empty trash", "clear recycle", "clear trash"],
             answer=(
-                f"The <b>{trash}</b> holds files you've deleted but haven't permanently removed.<br><br>"
-                f"To empty it, check the <b>{trash}</b> target in the Cleaner tab and click <b>Clean Selected</b>.<br><br>"
-                "This permanently deletes all files in the trash and frees up the space they occupy."
+                f"<b>{trash}</b> - <span style='color:green;'><b>SAFE_DELETE</b></span><br><br>"
+                f"The {trash} holds files you've already deleted but haven't permanently removed. "
+                "They still consume disk space.<br><br>"
+                f"<b>Next step:</b> Go to <b>Cleaner</b> tab &rarr; check <b>{trash}</b> &rarr; click <b>Clean Selected</b><br><br>"
+                "This is a <b>reversible-first</b> action - files are already in the trash, "
+                "so emptying it is the final confirmation."
             ),
         ),
 
         # --- Installed Apps ---
         _KBEntry(
-            keywords={"installed", "apps", "applications", "programs", "software"},
-            patterns=["installed apps", "list apps", "view applications", "my programs"],
+            keywords={"installed", "apps", "applications", "programs", "software", "uninstall"},
+            patterns=["installed apps", "list apps", "view applications", "how to uninstall",
+                       "remove app", "uninstall program"],
             answer=(
-                "The <b>Installed Apps</b> tab shows all applications on your system.<br><br>"
+                "<b>Installed Apps Tab</b><br><br>"
+                "View and manage installed applications. Classification depends on the app:<br>"
                 "<ul>"
-                "<li>Use the <b>search box</b> to filter by name</li>"
-                "<li>Toggle <b>Safe Mode</b> to hide system-critical packages</li>"
-                "<li>Columns show: Name, Version, Publisher, and Size</li>"
+                "<li><span style='color:#CC8800;'><b>REVIEW</b></span> - Most apps. Verify you no longer need them before removing.</li>"
+                "<li><span style='color:red;'><b>DO_NOT_DELETE</b></span> - System packages. "
+                "Enable <b>Safe Mode</b> to hide these.</li>"
                 "</ul>"
-            ),
-        ),
-
-        # --- Uninstall ---
-        _KBEntry(
-            keywords={"uninstall", "remove", "app", "program"},
-            patterns=["how to uninstall", "remove app", "uninstall program", "delete app"],
-            answer=(
-                "To uninstall an application:<br><br>"
-                "<ol>"
-                "<li>Go to the <b>Installed Apps</b> tab</li>"
-                "<li>Find the app using the search box</li>"
-                "<li>Select it and click <b>Uninstall</b></li>"
-                "</ol>"
+                "<b>Next step:</b> Search for unused apps &rarr; Select &rarr; Click <b>Uninstall</b><br><br>"
                 + (
                     "On Windows, this runs the app's built-in uninstaller.<br>"
                     if IS_WINDOWS else
-                    "On Linux, the uninstall command is shown for you to run in terminal "
-                    "(e.g. <code>sudo apt remove &lt;package&gt;</code>).<br>"
+                    "On Linux, the uninstall command is shown for terminal execution.<br>"
                 )
-                + "<br>Enable <b>Safe Mode</b> to prevent accidental removal of system packages."
+                + "<b>Always keep Safe Mode ON</b> to protect system-critical packages."
             ),
         ),
 
-        # --- Safe Mode ---
+        # --- Storage tab ---
         _KBEntry(
-            keywords={"safe", "mode", "system", "critical", "hide"},
-            patterns=["safe mode", "what is safe mode", "hide system"],
+            keywords={"storage", "large", "files", "folders", "biggest", "space", "scan"},
+            patterns=["find large files", "scan storage", "biggest files", "what uses space",
+                       "disk space", "storage tab"],
             answer=(
-                "<b>Safe Mode</b> in the Installed Apps tab hides system-critical packages "
-                "that should not be removed.<br><br>"
-                "When enabled, packages essential to your operating system are hidden "
-                "so you don't accidentally uninstall them. It's recommended to keep Safe Mode "
-                "enabled unless you know what you're doing."
-            ),
-        ),
-
-        # --- Storage scanning ---
-        _KBEntry(
-            keywords={"storage", "large", "files", "folders", "biggest", "space"},
-            patterns=["find large files", "scan storage", "biggest files", "what uses space", "disk space"],
-            answer=(
-                "The <b>Storage</b> tab helps you find what's using the most space:<br><br>"
+                "<b>Storage Tab</b> - Find what's using the most space.<br><br>"
                 "<ol>"
                 "<li>Select a storage location from the dropdown</li>"
-                "<li>Click <b>Scan Folders</b> to see the largest directories</li>"
-                "<li>Click <b>Scan Files</b> to see the largest individual files</li>"
+                "<li>Click <b>Scan Folders</b> or <b>Scan Files</b></li>"
+                "<li>Review results - classify each item before acting:</li>"
                 "</ol>"
-                "<br>Files are categorized by size: GIGANTIC (&gt;10 GB), HUGE (&gt;1 GB), "
-                "LARGE (&gt;200 MB), MEDIUM (&gt;50 MB), SMALL."
-            ),
-        ),
-
-        # --- AI Advisor overview ---
-        _KBEntry(
-            keywords={"ai", "advisor", "recommend", "suggestion", "smart"},
-            patterns=["ai advisor", "what is ai advisor", "smart advisor", "file recommendations"],
-            answer=(
-                "The <b>AI Advisor</b> uses machine learning techniques to find files safe to delete:<br><br>"
                 "<ul>"
-                "<li><b>Statistical scoring</b> - Uses z-scores to find files that are unusually "
-                "large and old compared to your system's average</li>"
-                "<li><b>Duplicate detection</b> - Finds identical file copies wasting space</li>"
-                "<li><b>Safety protection</b> - System files are automatically excluded</li>"
+                "<li><span style='color:green;'><b>SAFE_DELETE</b></span> - Files in Temp/Cache/Downloads (after review)</li>"
+                "<li><span style='color:#CC8800;'><b>REVIEW</b></span> - Large files you don't recognize. "
+                "Click to <b>Open folder</b> and inspect.</li>"
+                "<li><span style='color:red;'><b>DO_NOT_DELETE</b></span> - System directories. Leave alone.</li>"
                 "</ul>"
-                "<br>Results are color-coded: <span style='color:green;'><b>green = safe to delete</b></span>, "
-                "<span style='color:#CC8800;'><b>yellow = review first</b></span>."
+                "Size categories: GIGANTIC (&gt;10 GB), HUGE (&gt;1 GB), LARGE (&gt;200 MB), MEDIUM (&gt;50 MB)"
             ),
         ),
 
-        # --- AI: How scoring works ---
+        # --- AI Advisor ---
         _KBEntry(
-            keywords={"score", "scoring", "points", "zscore", "z-score", "how"},
-            patterns=["how does scoring work", "how are files scored", "what is z-score", "scoring system"],
+            keywords={"ai", "advisor", "recommend", "suggestion", "smart", "ml", "machine"},
+            patterns=["ai advisor", "what is ai advisor", "smart advisor", "file recommendations",
+                       "how does ai work", "machine learning"],
             answer=(
-                "Each file gets a score from <b>0-100</b> based on three components:<br><br>"
+                "<b>AI Advisor</b> - Automated file classification engine.<br><br>"
+                "The AI Advisor maps directly to the StorageAdvisor framework:<br>"
+                "<ul>"
+                "<li><span style='color:green;'><b>Green rows = SAFE_DELETE</b></span> (score 60+) - Queue for deletion</li>"
+                "<li><span style='color:#CC8800;'><b>Yellow rows = REVIEW</b></span> (score 30-59) - Inspect first</li>"
+                "<li><b>Protected files = DO_NOT_DELETE</b> - Auto-excluded from results</li>"
+                "</ul>"
+                "<b>Scoring uses 3 components:</b><br>"
                 "<ol>"
-                "<li><b>Rule-based (max 50 pts)</b> - Points for junk extensions (.tmp, .log), "
-                "Downloads/Temp folder location, known junk directories</li>"
-                "<li><b>Statistical ML (max 30 pts)</b> - Z-score analysis: files that are unusually "
-                "large AND unusually old relative to your system score higher</li>"
-                "<li><b>Duplicate bonus (max 20 pts)</b> - Extra points if the file is a "
-                "duplicate copy (not the newest)</li>"
+                "<li><b>Rule-based</b> (max 50 pts) - Junk extensions, known cache dirs</li>"
+                "<li><b>Statistical ML</b> (max 30 pts) - Z-score outlier detection for size + age</li>"
+                "<li><b>Duplicate bonus</b> (max 20 pts) - Identical copies detected via partial hash</li>"
                 "</ol>"
-                "<br>Score 60+ = <b>Safe to delete</b> | Score 30-59 = <b>Review</b> | "
-                "Protected files are excluded entirely."
+                "<b>Next step:</b> Go to <b>AI Advisor</b> tab &rarr; Click <b>AI Scan</b> &rarr; "
+                "Click <b>Select All Safe</b> &rarr; Click <b>Delete Selected</b>"
             ),
         ),
 
-        # --- AI: Duplicates ---
+        # --- Duplicates ---
         _KBEntry(
             keywords={"duplicate", "duplicates", "copies", "identical", "same"},
             patterns=["duplicate files", "find duplicates", "identical files", "same files"],
             answer=(
-                "The AI Advisor detects <b>duplicate files</b> automatically:<br><br>"
+                "<b>Duplicate Detection</b> - <span style='color:green;'><b>SAFE_DELETE</b></span> (copies only)<br><br>"
+                "The AI Advisor detects duplicate files automatically:<br>"
                 "<ol>"
-                "<li>Files are grouped by exact size (fast pre-filter)</li>"
-                "<li>Same-size files are compared using partial MD5 hash (first + last 4 KB)</li>"
-                "<li>Files with matching size + hash are marked as duplicates</li>"
-                "<li>The <b>newest copy is kept</b>, all others are marked safe to delete</li>"
+                "<li>Files grouped by exact size (fast pre-filter)</li>"
+                "<li>Same-size files compared via partial MD5 hash (first + last 4 KB)</li>"
+                "<li>Matching files = duplicates</li>"
+                "<li><b>Newest copy is kept</b>, others marked SAFE_DELETE</li>"
                 "</ol>"
-                "<br>Use the category filter and select <b>\"Duplicates Only\"</b> to focus on them."
+                "<b>Next step:</b> In <b>AI Advisor</b> tab, use the category filter &rarr; "
+                "select <b>\"Duplicates Only\"</b> to focus on them.<br><br>"
+                "Duplicate copies are classified SAFE_DELETE because the newest version is always preserved."
             ),
         ),
 
-        # --- AI: Safety / Protected ---
+        # --- Protected / Safety ---
         _KBEntry(
-            keywords={"protected", "safety", "safe", "system", "dangerous"},
-            patterns=["what files are protected", "is it safe", "will it break", "system files"],
+            keywords={"protected", "safety", "system", "critical"},
+            patterns=["what files are protected", "system files", "protected paths",
+                       "what is protected"],
             answer=(
-                "The AI Advisor automatically <b>protects system-critical files</b>:<br><br>"
-                "<ul>"
-                + (
-                    "<li>Windows: System32, Program Files, Windows directory</li>"
-                    if IS_WINDOWS else
-                    "<li>Linux: /usr, /bin, /sbin, /lib, /etc, /boot, /var/lib/dpkg</li>"
-                )
-                + "<li>Protected extensions: .sys, .dll, .so, .ko, .service, .conf</li>"
-                "</ul>"
-                "<br>Protected files are <b>never shown</b> in the results table, "
-                "so you can't accidentally select them for deletion."
+                "<b>Protected Paths</b> - <span style='color:red;'><b>DO_NOT_DELETE</b></span>:<br><br>"
+                f"On {os_name}, these are <b>never</b> suggested for deletion:<br>"
+                f"<ul>{protected_html}</ul>"
+                "<b>Protected extensions:</b> .sys, .dll, .so, .ko, .service, .conf<br><br>"
+                "The AI Advisor automatically excludes all protected paths from scan results. "
+                "They will <b>never appear</b> in the results table."
             ),
         ),
 
-        # --- AI: Select All Safe ---
+        # --- Select All Safe ---
         _KBEntry(
-            keywords={"select", "safe", "green", "button"},
-            patterns=["select all safe", "select safe files", "green button", "one click"],
+            keywords={"select", "safe", "green", "button", "queue"},
+            patterns=["select all safe", "queue safe clean", "green button", "one click delete"],
             answer=(
-                "The <b>Select All Safe</b> button selects only the green-highlighted rows "
-                "(files classified as safe to delete).<br><br>"
-                "Yellow rows (\"Review\") are left unchecked so you can manually decide on those.<br><br>"
-                "After selecting, click <b>Delete Selected</b> to remove the safe files. "
-                "A confirmation dialog will appear before anything is deleted."
+                "<b>Select All Safe</b> = Queue all SAFE_DELETE items.<br><br>"
+                "This button selects <b>only green rows</b> (SAFE_DELETE classification).<br>"
+                "Yellow rows (REVIEW) are left unchecked for manual inspection.<br><br>"
+                "<b>Next step:</b><br>"
+                "<ol>"
+                "<li>Click <b>Select All Safe</b></li>"
+                "<li>Review the selection count in the dashboard</li>"
+                "<li>Click <b>Delete Selected</b></li>"
+                "<li>Confirm in the dialog</li>"
+                "</ol>"
+                "Deletion is <b>always user-confirmed</b>. Nothing happens without your approval."
             ),
         ),
 
-        # --- AI: Categories ---
+        # --- Categories ---
         _KBEntry(
             keywords={"category", "categories", "filter", "type", "types"},
             patterns=["file categories", "category filter", "what categories", "file types"],
             answer=(
-                "The AI Advisor categorizes files into:<br><br>"
-                "<ul>"
-                "<li><b>Cache & Temp</b> - Temporary/cache files</li>"
-                "<li><b>Duplicate</b> - Identical file copies</li>"
-                "<li><b>Old Downloads</b> - Files in Downloads folders</li>"
-                "<li><b>Large Unused</b> - Big files not accessed recently</li>"
-                "<li><b>Log Files</b> - Application logs</li>"
-                "<li><b>Package Cache</b> - Package manager caches</li>"
-                "<li><b>Old Media</b> - Old media files</li>"
-                "<li><b>Archive</b> - ZIP, RAR, ISO files</li>"
-                "<li><b>Build Artifacts</b> - Compiled output files</li>"
-                "</ul>"
-                "Use the <b>category filter dropdown</b> to view only specific types."
+                "<b>File Categories</b> with default classifications:<br><br>"
+                "<table border='0' cellpadding='3' cellspacing='1'>"
+                "<tr><td><b>Category</b></td><td><b>Classification</b></td></tr>"
+                "<tr><td>Cache & Temp</td><td style='color:green;'>SAFE_DELETE</td></tr>"
+                "<tr><td>Duplicate Copies</td><td style='color:green;'>SAFE_DELETE</td></tr>"
+                "<tr><td>Log Files</td><td style='color:green;'>SAFE_DELETE</td></tr>"
+                "<tr><td>Package Cache</td><td style='color:green;'>SAFE_DELETE</td></tr>"
+                "<tr><td>Build Artifacts</td><td style='color:green;'>SAFE_DELETE</td></tr>"
+                "<tr><td>Old Downloads</td><td style='color:#CC8800;'>REVIEW</td></tr>"
+                "<tr><td>Large Unused</td><td style='color:#CC8800;'>REVIEW</td></tr>"
+                "<tr><td>Old Media</td><td style='color:#CC8800;'>REVIEW</td></tr>"
+                "<tr><td>Archives</td><td style='color:#CC8800;'>REVIEW</td></tr>"
+                "</table><br>"
+                "Use the <b>category filter dropdown</b> in the AI Advisor tab to focus on specific types."
             ),
         ),
 
@@ -329,75 +420,88 @@ def _build_kb() -> List[_KBEntry]:
             keywords={"admin", "administrator", "sudo", "root", "privilege", "elevated", "permission"},
             patterns=["run as admin", "how to sudo", "administrator", "need permission", "access denied"],
             answer=(
-                f"Some cleaning targets require elevated privileges ({elevate}).<br><br>"
+                f"<b>Elevated Privileges</b> ({elevate})<br><br>"
+                "Some SAFE_DELETE targets (system temp, package cache) require elevation.<br><br>"
                 + (
-                    "On Windows:<br>"
-                    "<ol>"
-                    "<li>Right-click the StorageCleaner shortcut</li>"
-                    "<li>Select <b>Run as administrator</b></li>"
-                    "</ol>"
+                    "<b>Windows:</b> Right-click StorageCleaner &rarr; <b>Run as administrator</b><br>"
                     if IS_WINDOWS else
-                    "On Linux:<br>"
-                    "<ol>"
-                    "<li>Run from terminal: <code>sudo python3 main.py</code></li>"
-                    "</ol>"
+                    "<b>Linux:</b> Run <code>sudo python3 main.py</code> from terminal<br>"
                 )
-                + "<br>Running elevated gives access to system temp files and other protected locations."
+                + "<br><b>Note:</b> Running elevated does NOT change the safety classification. "
+                "System-critical paths remain <span style='color:red;'><b>DO_NOT_DELETE</b></span> regardless of privilege level."
             ),
         ),
 
         # --- Setup Wizard ---
         _KBEntry(
-            keywords={"setup", "wizard", "first", "run", "configure", "storage", "location"},
+            keywords={"setup", "wizard", "first", "configure", "location"},
             patterns=["setup wizard", "first run", "configure storage", "change drives", "change locations"],
             answer=(
-                "The <b>Setup Wizard</b> runs on first launch and lets you select which "
-                "storage locations to manage.<br><br>"
-                "To re-run it later: go to <b>Help &gt; Re-run Setup Wizard</b>.<br><br>"
-                "This lets you add or remove storage locations (drives on Windows, "
-                "mount points on Linux) from the app."
+                "<b>Setup Wizard</b><br><br>"
+                "The wizard lets you select which storage locations to manage.<br>"
+                "To re-run: <b>Help &gt; Re-run Setup Wizard</b><br><br>"
+                + (
+                    "On Windows: select drives (C:, D:, etc.)<br>"
+                    if IS_WINDOWS else
+                    "On Linux: select mount points (/, /home, /mnt/data, etc.)<br>"
+                )
+                + "<br><b>Note:</b> Only user-scoped directories within selected locations "
+                "will be suggested for deletion. System paths remain DO_NOT_DELETE."
             ),
         ),
 
         # --- Log file ---
         _KBEntry(
-            keywords={"log", "logs", "error", "errors", "file", "debug"},
+            keywords={"log", "logs", "error", "errors", "debug"},
             patterns=["log file", "view logs", "where are logs", "check errors", "debug"],
             answer=(
-                "StorageCleaner keeps a log file of all operations.<br><br>"
-                "To view it: go to <b>Help &gt; Open Log File</b>.<br>"
-                "To open the log folder: go to <b>Help &gt; Open Log Folder</b>.<br><br>"
-                "The log file is useful for debugging if a cleaning operation fails "
-                "or files couldn't be deleted."
+                "<b>Log File</b><br><br>"
+                "StorageCleaner logs all operations for auditing.<br>"
+                "View it: <b>Help &gt; Open Log File</b><br>"
+                "Open folder: <b>Help &gt; Open Log Folder</b><br><br>"
+                "Check the log if a deletion fails - it shows exactly which files "
+                "couldn't be removed and why (usually «file in use» or «permission denied»)."
             ),
         ),
 
         # --- User Guide ---
         _KBEntry(
-            keywords={"guide", "manual", "documentation", "docs", "user"},
+            keywords={"guide", "manual", "documentation", "docs"},
             patterns=["user guide", "open guide", "manual", "documentation"],
             answer=(
-                "StorageCleaner has a built-in User Guide.<br><br>"
-                "To open it: go to <b>Help &gt; User Guide</b>.<br><br>"
-                "The guide covers every tab and feature with detailed instructions."
+                "<b>User Guide</b><br><br>"
+                "Full documentation: <b>Help &gt; User Guide</b><br><br>"
+                "Covers all tabs, features, and the StorageAdvisor decision framework."
             ),
         ),
 
-        # --- Tips ---
+        # --- Storage tips / hygiene ---
         _KBEntry(
-            keywords={"tip", "tips", "best", "practice", "advice", "recommend"},
-            patterns=["give me tips", "storage tips", "best practices", "advice"],
+            keywords={"tip", "tips", "best", "practice", "advice", "hygiene", "recommend"},
+            patterns=["give me tips", "storage tips", "best practices", "advice",
+                       "storage hygiene", "recommendations"],
             answer=(
-                "Here are some <b>storage management tips</b>:<br><br>"
-                "<ul>"
-                "<li>Run a clean scan periodically (e.g. monthly) to keep your system lean</li>"
-                "<li>Always review files before deleting, especially in the AI Advisor tab</li>"
-                "<li>Close browsers before cleaning their caches</li>"
-                f"<li>Run as {get_elevation_hint()} for full access to system files</li>"
-                f"<li>Empty the {trash} regularly - deleted files still use space</li>"
-                "<li>Use the AI Advisor's <b>Select All Safe</b> button for quick, safe cleanup</li>"
-                "<li>Check for duplicate files - they can waste significant space</li>"
-                "</ul>"
+                f"<b>Storage Hygiene - {os_name} Recommendations:</b><br><br>"
+                "<ol>"
+                "<li><b>Monthly cleanup</b> - Run the <b>Cleaner</b> tab scan + clean. "
+                "All targets are SAFE_DELETE. Click <b>Scan</b> then <b>Clean Selected</b>.</li>"
+                "<li><b>Quarterly AI scan</b> - Run <b>AI Advisor</b> with min size 25 MB. "
+                "Use <b>Select All Safe</b> for green items, manually review yellow.</li>"
+                "<li><b>Duplicate audit</b> - Filter by <b>Duplicates Only</b> in AI Advisor. "
+                "Duplicate copies are SAFE_DELETE (newest kept).</li>"
+                + (
+                    "<li><b>Windows Update cleanup</b> - Run Disk Cleanup as admin to clear old updates (1-10 GB potential).</li>"
+                    "<li><b>Hibernate file</b> - If you don't use hibernate, run <code>powercfg /h off</code> as admin "
+                    "to reclaim the hiberfil.sys space (often 4-8 GB). Classification: REVIEW.</li>"
+                    if IS_WINDOWS else
+                    "<li><b>APT cache</b> - The Cleaner handles this, but you can also run "
+                    "<code>sudo apt clean</code> for a thorough purge. Classification: SAFE_DELETE.</li>"
+                    "<li><b>Docker cleanup</b> - If you use Docker, run <code>docker system prune</code> "
+                    "to clear unused images/containers. Classification: REVIEW (inspect first).</li>"
+                )
+                + "<li><b>Downloads folder</b> - Classification: REVIEW. Open it periodically, "
+                "archive what you need, delete the rest.</li>"
+                "</ol>"
             ),
         ),
 
@@ -406,13 +510,14 @@ def _build_kb() -> List[_KBEntry]:
             keywords={"platform", "windows", "linux", "ubuntu", "kali", "cross"},
             patterns=["what platforms", "does it work on linux", "windows support", "cross platform"],
             answer=(
-                "StorageCleaner works on:<br><br>"
+                "<b>Cross-Platform Support</b><br><br>"
                 "<ul>"
-                "<li><b>Windows</b> (10, 11) - Full support including registry-based app listing</li>"
-                "<li><b>Linux</b> (Ubuntu, Kali, Debian, etc.) - Full support including "
-                "dpkg/rpm/flatpak/snap package listing</li>"
+                "<li><b>Windows</b> (10, 11) - Registry-based app listing, PowerShell recycle bin cleanup</li>"
+                "<li><b>Linux</b> (Ubuntu, Kali, Debian) - dpkg/rpm/flatpak/snap app listing, "
+                "~/.local/share/Trash cleanup</li>"
                 "</ul>"
-                f"<br>You are currently running on <b>{os_name}</b>."
+                f"Currently running on <b>{os_name}</b>.<br><br>"
+                "Safety rules are platform-specific - protected paths differ between Windows and Linux."
             ),
         ),
 
@@ -421,10 +526,30 @@ def _build_kb() -> List[_KBEntry]:
             keywords={"minimum", "size", "mb", "small", "threshold"},
             patterns=["minimum size", "change size", "scan small files", "file size threshold"],
             answer=(
-                "In the <b>AI Advisor</b> tab, you can set the minimum file size to scan:<br><br>"
-                "Available options: <b>10 MB, 25 MB, 50 MB, 100 MB, 250 MB, 500 MB</b><br><br>"
-                "Lower values find more files but the scan takes longer. "
-                "The default is <b>50 MB</b>, which is a good balance between coverage and speed."
+                "<b>Minimum File Size</b> (AI Advisor)<br><br>"
+                "Options: <b>10 MB, 25 MB, 50 MB, 100 MB, 250 MB, 500 MB</b><br>"
+                "Default: <b>50 MB</b><br><br>"
+                "<b>Recommendation:</b> Set to <b>25 MB</b> if your disk is nearly full. "
+                "Lower values find more SAFE_DELETE candidates but scan takes longer.<br><br>"
+                "<b>Next step:</b> In <b>AI Advisor</b> tab, change the min size dropdown, then click <b>AI Scan</b>."
+            ),
+        ),
+
+        # --- About / What is this ---
+        _KBEntry(
+            keywords={"what", "storagecleaner", "about", "app", "application"},
+            patterns=["what is storagecleaner", "what is this app", "about this app", "tell me about"],
+            answer=(
+                f"<b>StorageCleaner v1.2</b> - Cross-platform storage management tool.<br><br>"
+                "Features:<br>"
+                "<ul>"
+                "<li><b>Cleaner</b> - Scan and delete junk (SAFE_DELETE targets)</li>"
+                "<li><b>Installed Apps</b> - View and manage applications</li>"
+                "<li><b>Storage</b> - Find largest files and folders</li>"
+                "<li><b>AI Advisor</b> - ML-powered file classification with safety scoring</li>"
+                "<li><b>StorageAdvisor</b> - This chatbot. Guides you through safe cleanup.</li>"
+                "</ul>"
+                f"Running on <b>{os_name}</b>. All actions follow the SAFE_DELETE / REVIEW / DO_NOT_DELETE framework."
             ),
         ),
 
@@ -433,8 +558,8 @@ def _build_kb() -> List[_KBEntry]:
             keywords={"bye", "goodbye", "exit", "quit", "close"},
             patterns=["bye", "goodbye", "see you", "that's all"],
             answer=(
-                "Goodbye! Feel free to come back anytime you have questions about StorageCleaner. "
-                "Happy cleaning!"
+                "Goodbye! Remember the golden rule: <b>when in doubt, classify as REVIEW</b> "
+                "and inspect before deleting. Stay safe!"
             ),
         ),
     ]
@@ -461,14 +586,15 @@ def get_response(user_input: str) -> str:
 
     text = _PUNCT_RE.sub("", user_input.lower()).strip()
     if not text:
-        return "Please type a question and I'll do my best to help!"
+        return "Please type a question and I'll help you free space safely!"
 
     words = set(text.split())
 
     # Phase 1: exact phrase match (highest priority)
+    # Use word boundaries so short patterns like "hi" don't match inside "this"
     for entry in _kb:
         for pattern in entry.patterns:
-            if pattern in text:
+            if re.search(r"\b" + re.escape(pattern) + r"\b", text):
                 return entry.answer
 
     # Phase 2: keyword overlap scoring
@@ -485,26 +611,31 @@ def get_response(user_input: str) -> str:
 
     # Phase 3: fallback
     return (
-        "I'm not sure about that. I can only help with <b>StorageCleaner</b> topics.<br><br>"
-        "Try asking about:<br>"
+        "I'm not sure about that specific topic. I can only help with "
+        "<b>StorageCleaner</b> and safe disk cleanup.<br><br>"
+        "Try asking:<br>"
         "<ul>"
-        "<li>How to <b>clean</b> junk files</li>"
-        "<li>The <b>AI Advisor</b> and how scoring works</li>"
-        "<li><b>Duplicate</b> file detection</li>"
-        "<li>Finding <b>large files</b> in Storage tab</li>"
-        "<li><b>Uninstalling</b> apps</li>"
-        "<li>Running as <b>admin</b></li>"
-        "<li>Storage management <b>tips</b></li>"
+        "<li><i>\"What can I safely delete?\"</i> - Quick wins list</li>"
+        "<li><i>\"How to free space?\"</i> - Step-by-step guide</li>"
+        "<li><i>\"What should I never delete?\"</i> - Hard stops</li>"
+        "<li><i>\"Is this folder safe?\"</i> - Classification check</li>"
+        "<li><i>\"Storage tips\"</i> - Hygiene recommendations</li>"
+        "<li><i>\"How does AI Advisor work?\"</i> - Scoring explained</li>"
         "</ul>"
+        "<br>Every recommendation follows the <b>SAFE_DELETE / REVIEW / DO_NOT_DELETE</b> framework."
     )
 
 
 def get_welcome_message() -> str:
     """Return the initial bot welcome message."""
+    os_name = "Windows" if IS_WINDOWS else "Linux"
     return (
-        "Hi! I'm the <b>StorageCleaner Bot</b>. "
-        "I can help you learn how to use this app.<br><br>"
-        "Ask me about: <b>Cleaner</b>, <b>Installed Apps</b>, <b>Storage</b>, "
-        "<b>AI Advisor</b>, or just ask for <b>tips</b>!<br><br>"
-        "<i>Type your question below or click one of the quick-action buttons.</i>"
+        f"Hi! I'm <b>StorageAdvisor</b>, your {os_name} storage assistant.<br><br>"
+        "I help you free disk space <b>safely</b>. Every item gets a classification:<br>"
+        "<ul>"
+        "<li><span style='color:green;'><b>SAFE_DELETE</b></span> - Low-risk, queue for deletion</li>"
+        "<li><span style='color:#CC8800;'><b>REVIEW</b></span> - Inspect before removing</li>"
+        "<li><span style='color:red;'><b>DO_NOT_DELETE</b></span> - System-critical, hands off</li>"
+        "</ul>"
+        "<i>Type your question below or click a quick-action button to get started.</i>"
     )

@@ -120,21 +120,32 @@ def _build_guide_html() -> str:
     </ul>
 
     <hr>
-    <h3 style="color:#1976D2;">5. Chatbot Tab</h3>
-    <p>The Chatbot is your in-app assistant. It can answer questions about
-    StorageCleaner's features and give storage management tips.</p>
+    <h3 style="color:#1976D2;">5. StorageAdvisor Tab</h3>
+    <p>StorageAdvisor is your in-app storage assistant. It uses a strict
+    decision framework to help you free disk space safely:</p>
+    <ul>
+      <li><span style="color:green;"><b>SAFE_DELETE</b></span> &ndash; Low-risk
+          temp/cache items, queue for deletion.</li>
+      <li><span style="color:#FF8C00;"><b>REVIEW</b></span> &ndash; User data or
+          unknown items; recommend manual inspection.</li>
+      <li><span style="color:red;"><b>DO_NOT_DELETE</b></span> &ndash; OS/system
+          paths; hard warning, never delete.</li>
+    </ul>
     <ul>
       <li><b>How to use</b> &ndash; Type a question in the text box and press
           Enter or click Send.</li>
-      <li><b>Quick actions</b> &ndash; Click the buttons below the input box for
-          common questions.</li>
-      <li><b>Topics it covers</b> &ndash; Cleaner, Installed Apps, Storage, AI Advisor,
-          setup wizard, admin/sudo, duplicate detection, and general tips.</li>
-      <li><b>Scope</b> &ndash; The chatbot only answers questions about this app.
-          It does not connect to the internet or use external AI services.</li>
+      <li><b>Quick action buttons</b> &ndash; Click Quick Wins, Hard Stops,
+          Is this safe?, Storage Tips, or How to free space?</li>
+      <li><b>Topics it covers</b> &ndash; Safe cleanup, folder classification,
+          AI Advisor scoring, duplicate detection, browser caches, admin/sudo,
+          setup wizard, and storage hygiene recommendations.</li>
+      <li><b>Scope</b> &ndash; StorageAdvisor only answers questions about this app
+          and safe disk cleanup. It does not connect to the internet or use
+          external AI services.</li>
     </ul>
-    <p><b>Example questions:</b> <i>&ldquo;How do I clean junk files?&rdquo;</i>,
-    <i>&ldquo;What is the AI Advisor?&rdquo;</i>,
+    <p><b>Example questions:</b> <i>&ldquo;What can I safely delete?&rdquo;</i>,
+    <i>&ldquo;Is this folder safe?&rdquo;</i>,
+    <i>&ldquo;How does AI Advisor work?&rdquo;</i>,
     <i>&ldquo;Give me storage tips&rdquo;</i></p>
 
     <hr>
