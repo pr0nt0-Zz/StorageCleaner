@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor, QBrush
 from PySide6.QtWidgets import (
     QWidget, QMainWindow, QTabWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit, QCheckBox,
-    QMessageBox, QLineEdit, QGroupBox, QComboBox, QMenuBar, QTextBrowser
+    QMessageBox, QLineEdit, QGroupBox, QComboBox, QMenuBar
 )
 
 from core.utils import human_bytes, is_admin, drive_exists, drive_usage, open_in_explorer, size_class, score_label, confidence_label, recommendation_color, get_logger, LOG_FILE
@@ -19,7 +19,6 @@ from core.apps import list_installed_apps
 from core.drive_scan import top_largest_folders, top_largest_files
 from core.ml_advisor import ml_scan, ScanResult
 from core.file_categories import CATEGORIES
-from core.chatbot import get_response as chatbot_response, get_welcome_message
 from core.platform_utils import (
     IS_WINDOWS, IS_LINUX,
     get_elevation_hint, get_trash_label,
@@ -203,7 +202,6 @@ class MainWindow(QMainWindow):
         tabs.addTab(self._build_apps_tab(), "Installed Apps")
         tabs.addTab(self._build_drives_tab(), "Storage")
         tabs.addTab(self._build_advisor_tab(), "AI Advisor")
-        tabs.addTab(self._build_chatbot_tab(), "StorageAdvisor")
 
         self.setCentralWidget(tabs)
         self._build_menu_bar()
@@ -351,7 +349,6 @@ class MainWindow(QMainWindow):
             "<li><b>Installed Apps</b> - View and manage installed applications</li>"
             "<li><b>Storage</b> - Scan and identify the largest files and folders</li>"
             "<li><b>AI Advisor</b> - ML-powered file analysis with duplicate detection and safety scoring</li>"
-            "<li><b>StorageAdvisor</b> - In-app storage assistant for safe disk cleanup guidance</li>"
             "</ul>"
             "<p><b>Tips:</b></p>"
             "<ul>"
@@ -567,7 +564,7 @@ class MainWindow(QMainWindow):
         else:
             hint_text = "Uninstall column shows the terminal command. Copy and run it in your terminal. (Safe mode ON blocks execution.)"
         hint = QLabel(hint_text)
-        hint.setStyleSheet("color: #AAAAAA; font-size: 13px;")
+        hint.setStyleSheet("color: #333; font-size: 13px;")
         layout.addWidget(hint)
 
         self.app_refresh.clicked.connect(self._load_apps)
@@ -752,7 +749,7 @@ class MainWindow(QMainWindow):
         self.cb_drive_select_all = QCheckBox("Select All")
         self.cb_drive_select_all.stateChanged.connect(self._toggle_drive_select_all)
         self.btn_drive_delete = QPushButton("Delete Selected")
-        self.btn_drive_delete.setStyleSheet("color: #FF6B6B; font-weight: bold;")
+        self.btn_drive_delete.setStyleSheet("color: red; font-weight: bold;")
         delete_row.addWidget(self.cb_drive_select_all)
         delete_row.addWidget(self.btn_drive_delete)
         delete_row.addStretch()
@@ -977,9 +974,9 @@ class MainWindow(QMainWindow):
         self.cb_adv_select_all = QCheckBox("Select All")
         self.cb_adv_select_all.stateChanged.connect(self._toggle_advisor_select_all)
         self.btn_adv_select_safe = QPushButton("Select All Safe")
-        self.btn_adv_select_safe.setStyleSheet("color: #66BB6A; font-weight: bold; font-size: 14px;")
+        self.btn_adv_select_safe.setStyleSheet("color: green; font-weight: bold; font-size: 14px;")
         self.btn_adv_delete = QPushButton("Delete Selected")
-        self.btn_adv_delete.setStyleSheet("color: #FF6B6B; font-weight: bold;")
+        self.btn_adv_delete.setStyleSheet("color: red; font-weight: bold;")
         action_row.addWidget(self.cb_adv_select_all)
         action_row.addWidget(self.btn_adv_select_safe)
         action_row.addWidget(self.btn_adv_delete)
@@ -1225,88 +1222,6 @@ class MainWindow(QMainWindow):
             f"{remaining_count} file(s) remaining in review list  |  Deleted: {ok_count}  |  Failed: {fail_count}"
         )
         self._advisor_log(f"=== Delete done. OK={ok_count}, FAIL={fail_count} ===")
-
-    # -------------------------
-    # StorageAdvisor Tab
-    # -------------------------
-    def _build_chatbot_tab(self) -> QWidget:
-        w = QWidget()
-        layout = QVBoxLayout(w)
-
-        # Chat display
-        self.chat_display = QTextBrowser()
-        self.chat_display.setOpenExternalLinks(False)
-        self.chat_display.setStyleSheet(
-            "QTextBrowser { background-color: #1E1E1E; font-size: 15px; padding: 10px; color: #FFFFFF; }"
-        )
-        layout.addWidget(self.chat_display)
-
-        # Input row
-        input_row = QHBoxLayout()
-        self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Ask StorageAdvisor a question...")
-        self.chat_input.setStyleSheet("font-size: 15px; padding: 8px;")
-        self.chat_input.returnPressed.connect(self._send_chat_message)
-        input_row.addWidget(self.chat_input)
-
-        self.btn_chat_send = QPushButton("Send")
-        self.btn_chat_send.setStyleSheet("font-weight: bold; font-size: 15px; padding: 8px 18px;")
-        self.btn_chat_send.clicked.connect(self._send_chat_message)
-        input_row.addWidget(self.btn_chat_send)
-        layout.addLayout(input_row)
-
-        # Quick action buttons
-        quick_row = QHBoxLayout()
-        quick_row.addWidget(QLabel("Quick:"))
-        for label in ["Quick Wins", "Hard Stops", "Is this safe?", "Storage Tips", "How to free space?"]:
-            btn = QPushButton(label)
-            btn.setStyleSheet("font-size: 13px;")
-            btn.clicked.connect(lambda checked, q=label: self._send_quick_question(q))
-            quick_row.addWidget(btn)
-        quick_row.addStretch()
-        layout.addLayout(quick_row)
-
-        # Show welcome message
-        self._append_bot_message(get_welcome_message())
-
-        return w
-
-    def _append_bot_message(self, html_content: str):
-        self.chat_display.append(
-            '<div style="background-color: #2A3A4A; border-radius: 8px; '
-            'padding: 10px; margin: 6px 40px 6px 0px;">'
-            '<b style="color: #5B9BD5;">StorageAdvisor:</b><br>'
-            f'{html_content}</div>'
-        )
-        self.chat_display.verticalScrollBar().setValue(
-            self.chat_display.verticalScrollBar().maximum()
-        )
-
-    def _append_user_message(self, text: str):
-        from html import escape
-        self.chat_display.append(
-            '<div style="background-color: #2A4A2A; border-radius: 8px; '
-            'padding: 10px; margin: 6px 0px 6px 40px; text-align: right;">'
-            '<b style="color: #66BB6A;">You:</b><br>'
-            f'{escape(text)}</div>'
-        )
-        self.chat_display.verticalScrollBar().setValue(
-            self.chat_display.verticalScrollBar().maximum()
-        )
-
-    def _send_chat_message(self):
-        text = self.chat_input.text().strip()
-        if not text:
-            return
-        self.chat_input.clear()
-        self._append_user_message(text)
-        response = chatbot_response(text)
-        self._append_bot_message(response)
-
-    def _send_quick_question(self, question: str):
-        self._append_user_message(question)
-        response = chatbot_response(question)
-        self._append_bot_message(response)
 
     # -------------------------
     # Status Bar
