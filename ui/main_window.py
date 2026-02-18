@@ -716,12 +716,15 @@ class MainWindow(QMainWindow):
     def _build_drives_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
 
         self.drive_info = QLabel("")
         layout.addWidget(self.drive_info)
 
         # usage refresh
         usage_row = QHBoxLayout()
+        usage_row.setSpacing(10)
         self.btn_usage = QPushButton("Refresh Storage Usage")
         usage_row.addWidget(self.btn_usage)
         self.drive_progress = QProgressBar()
@@ -732,12 +735,15 @@ class MainWindow(QMainWindow):
         # scan controls
         scan_box = QGroupBox("Storage Analyzer")
         scan_l = QHBoxLayout(scan_box)
+        scan_l.setSpacing(12)
+        scan_l.setContentsMargins(12, 12, 12, 12)
 
         scan_l.addWidget(QLabel("Location:"))
         self.drive_combo = QComboBox()
         self._populate_storage_combo(self.drive_combo)
         scan_l.addWidget(self.drive_combo)
 
+        scan_l.addSpacing(10)
         self.btn_scan_folders = QPushButton("Scan Top Folders")
         self.btn_scan_files = QPushButton("Scan Top Files")
         scan_l.addWidget(self.btn_scan_folders)
@@ -746,11 +752,13 @@ class MainWindow(QMainWindow):
 
         # delete controls
         delete_row = QHBoxLayout()
+        delete_row.setSpacing(12)
         self.cb_drive_select_all = QCheckBox("Select All")
         self.cb_drive_select_all.stateChanged.connect(self._toggle_drive_select_all)
         self.btn_drive_delete = QPushButton("Delete Selected")
         self.btn_drive_delete.setStyleSheet("color: red; font-weight: bold;")
         delete_row.addWidget(self.cb_drive_select_all)
+        delete_row.addSpacing(8)
         delete_row.addWidget(self.btn_drive_delete)
         delete_row.addStretch()
         layout.addLayout(delete_row)
@@ -930,27 +938,34 @@ class MainWindow(QMainWindow):
     def _build_advisor_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
 
         # Controls row
         ctrl = QHBoxLayout()
+        ctrl.setSpacing(10)
         ctrl.addWidget(QLabel("Min file size:"))
         self.adv_size_combo = QComboBox()
         self.adv_size_combo.addItems(["10 MB", "25 MB", "50 MB", "100 MB", "250 MB", "500 MB"])
         self.adv_size_combo.setCurrentIndex(2)  # default 50 MB
         ctrl.addWidget(self.adv_size_combo)
 
+        ctrl.addSpacing(10)
         ctrl.addWidget(QLabel("Location:"))
         self.adv_drive_combo = QComboBox()
         self._populate_storage_combo(self.adv_drive_combo)
         ctrl.addWidget(self.adv_drive_combo)
 
+        ctrl.addSpacing(10)
         self.btn_adv_scan = QPushButton("AI Scan")
         self.btn_adv_scan.setStyleSheet("font-weight: bold; font-size: 14px;")
         ctrl.addWidget(self.btn_adv_scan)
+        ctrl.addStretch()
         layout.addLayout(ctrl)
 
         # Category filter row
         filter_row = QHBoxLayout()
+        filter_row.setSpacing(10)
         filter_row.addWidget(QLabel("Filter by category:"))
         self.adv_cat_filter = QComboBox()
         self._populate_category_filter()
@@ -971,6 +986,7 @@ class MainWindow(QMainWindow):
 
         # Select all + select safe + delete row
         action_row = QHBoxLayout()
+        action_row.setSpacing(12)
         self.cb_adv_select_all = QCheckBox("Select All")
         self.cb_adv_select_all.stateChanged.connect(self._toggle_advisor_select_all)
         self.btn_adv_select_safe = QPushButton("Select All Safe")
@@ -978,7 +994,9 @@ class MainWindow(QMainWindow):
         self.btn_adv_delete = QPushButton("Delete Selected")
         self.btn_adv_delete.setStyleSheet("color: red; font-weight: bold;")
         action_row.addWidget(self.cb_adv_select_all)
+        action_row.addSpacing(8)
         action_row.addWidget(self.btn_adv_select_safe)
+        action_row.addSpacing(8)
         action_row.addWidget(self.btn_adv_delete)
         action_row.addStretch()
         layout.addLayout(action_row)
