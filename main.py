@@ -14,19 +14,25 @@ from ui.setup_wizard import SetupWizard
 
 def main():
     app = QApplication(sys.argv)
-    app.setFont(QFont(get_default_font(), 11))
+    app.setFont(QFont(get_default_font(), 12))
     app.setStyleSheet("""
-        QLabel { color: #1a1a1a; }
-        QPushButton { padding: 5px 12px; font-size: 13px; }
-        QComboBox { padding: 4px; font-size: 13px; }
-        QLineEdit { padding: 5px; font-size: 13px; }
-        QCheckBox { font-size: 13px; spacing: 6px; }
-        QTableWidget { font-size: 12px; }
-        QHeaderView::section { font-size: 12px; font-weight: bold; padding: 4px; }
-        QTabBar::tab { font-size: 13px; padding: 6px 14px; }
-        QTextEdit { font-size: 13px; }
-        QGroupBox { font-size: 13px; font-weight: bold; }
-        QProgressBar { font-size: 12px; min-height: 18px; }
+        * { color: #111111; }
+        QLabel { font-size: 14px; }
+        QPushButton { padding: 6px 14px; font-size: 14px; font-weight: 500; }
+        QComboBox { padding: 5px; font-size: 14px; }
+        QLineEdit { padding: 6px; font-size: 14px; }
+        QCheckBox { font-size: 14px; spacing: 8px; }
+        QTableWidget { font-size: 13px; }
+        QTableWidget::item { padding: 4px; }
+        QHeaderView::section { font-size: 13px; font-weight: bold; padding: 6px; }
+        QTabBar::tab { font-size: 14px; font-weight: bold; padding: 8px 16px; }
+        QTextEdit { font-size: 14px; }
+        QTextBrowser { font-size: 14px; }
+        QGroupBox { font-size: 14px; font-weight: bold; }
+        QGroupBox::title { color: #1976D2; }
+        QProgressBar { font-size: 13px; min-height: 20px; }
+        QMenuBar { font-size: 14px; }
+        QMenu { font-size: 14px; }
     """)
 
     # Set app icon for taskbar and window title bar

@@ -238,7 +238,7 @@ class MainWindow(QMainWindow):
         self.lbl_selected = QLabel("Selected reclaimable: —")
         self.lbl_last = QLabel("Last run: —")
         for x in (self.lbl_total, self.lbl_selected, self.lbl_last):
-            x.setStyleSheet("font-weight: 600;")
+            x.setStyleSheet("font-weight: 600; font-size: 14px;")
         dash_l.addWidget(self.lbl_total)
         dash_l.addWidget(self.lbl_selected)
         dash_l.addWidget(self.lbl_last)
@@ -284,7 +284,7 @@ class MainWindow(QMainWindow):
             self.admin_label.setText(
                 f"{greeting}Running as Admin: NO (some system folders may fail; {hint})"
             )
-        self.admin_label.setStyleSheet("font-weight: 600;")
+        self.admin_label.setStyleSheet("font-weight: 600; font-size: 14px;")
 
     def _load_settings(self):
         safe_mode = self.settings.value("apps/safe_mode", True, type=bool)
@@ -567,7 +567,7 @@ class MainWindow(QMainWindow):
         else:
             hint_text = "Uninstall column shows the terminal command. Copy and run it in your terminal. (Safe mode ON blocks execution.)"
         hint = QLabel(hint_text)
-        hint.setStyleSheet("color: #444; font-size: 12px;")
+        hint.setStyleSheet("color: #333; font-size: 13px;")
         layout.addWidget(hint)
 
         self.app_refresh.clicked.connect(self._load_apps)
@@ -948,7 +948,7 @@ class MainWindow(QMainWindow):
         ctrl.addWidget(self.adv_drive_combo)
 
         self.btn_adv_scan = QPushButton("AI Scan")
-        self.btn_adv_scan.setStyleSheet("font-weight: bold;")
+        self.btn_adv_scan.setStyleSheet("font-weight: bold; font-size: 14px;")
         ctrl.addWidget(self.btn_adv_scan)
         layout.addLayout(ctrl)
 
@@ -963,7 +963,7 @@ class MainWindow(QMainWindow):
 
         # Dashboard
         self.adv_dashboard = QLabel("Scan a storage location to find files safe to delete.")
-        self.adv_dashboard.setStyleSheet("font-weight: 600;")
+        self.adv_dashboard.setStyleSheet("font-weight: 600; font-size: 14px;")
         self.adv_dashboard.setWordWrap(True)
         layout.addWidget(self.adv_dashboard)
 
@@ -977,7 +977,7 @@ class MainWindow(QMainWindow):
         self.cb_adv_select_all = QCheckBox("Select All")
         self.cb_adv_select_all.stateChanged.connect(self._toggle_advisor_select_all)
         self.btn_adv_select_safe = QPushButton("Select All Safe")
-        self.btn_adv_select_safe.setStyleSheet("color: green; font-weight: bold;")
+        self.btn_adv_select_safe.setStyleSheet("color: green; font-weight: bold; font-size: 14px;")
         self.btn_adv_delete = QPushButton("Delete Selected")
         self.btn_adv_delete.setStyleSheet("color: red; font-weight: bold;")
         action_row.addWidget(self.cb_adv_select_all)
@@ -1237,7 +1237,7 @@ class MainWindow(QMainWindow):
         self.chat_display = QTextBrowser()
         self.chat_display.setOpenExternalLinks(False)
         self.chat_display.setStyleSheet(
-            "QTextBrowser { background-color: #f5f5f5; font-size: 14px; padding: 8px; }"
+            "QTextBrowser { background-color: #f5f5f5; font-size: 15px; padding: 10px; }"
         )
         layout.addWidget(self.chat_display)
 
@@ -1245,12 +1245,12 @@ class MainWindow(QMainWindow):
         input_row = QHBoxLayout()
         self.chat_input = QLineEdit()
         self.chat_input.setPlaceholderText("Type your question here...")
-        self.chat_input.setStyleSheet("font-size: 14px; padding: 6px;")
+        self.chat_input.setStyleSheet("font-size: 15px; padding: 8px;")
         self.chat_input.returnPressed.connect(self._send_chat_message)
         input_row.addWidget(self.chat_input)
 
         self.btn_chat_send = QPushButton("Send")
-        self.btn_chat_send.setStyleSheet("font-weight: bold; padding: 6px 16px;")
+        self.btn_chat_send.setStyleSheet("font-weight: bold; font-size: 15px; padding: 8px 18px;")
         self.btn_chat_send.clicked.connect(self._send_chat_message)
         input_row.addWidget(self.btn_chat_send)
         layout.addLayout(input_row)
